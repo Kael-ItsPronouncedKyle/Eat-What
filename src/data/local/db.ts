@@ -1,6 +1,19 @@
 import Dexie, { type Table } from 'dexie'
 import type { TableMap, TableName } from '../repository'
 
+/** A queued write waiting for the network (spec: offline write queue). */
+export interface OutboxOp {
+  id: string
+  householdId: string | null
+  table: TableName
+  rowId: string
+  kind: 'put' | 'patch' | 'softDelete' | 'remove'
+  payload: unknown
+  createdAt: string
+  attempts: number
+  lastError: string | null
+}
+
 /** IndexedDB mirror. One object store per table, indexed by household so lists are cheap. */
 export class QmDatabase extends Dexie {
   households!: Table<TableMap['households'], string>
@@ -33,6 +46,7 @@ export class QmDatabase extends Dexie {
   invites!: Table<TableMap['invites'], string>
   notification_prefs!: Table<TableMap['notification_prefs'], string>
   meta!: Table<{ key: string; value: unknown }, string>
+  outbox!: Table<OutboxOp, string>
 
   constructor(name = 'quartermaster') {
     super(name)
@@ -68,6 +82,7 @@ export class QmDatabase extends Dexie {
       notification_prefs: 'id, householdId, userId',
       meta: 'key',
     })
+    this.version(2).stores({ outbox: 'id, householdId, createdAt' })
   }
 
   store<K extends TableName>(name: K): Table<TableMap[K], string> {

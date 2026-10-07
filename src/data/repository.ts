@@ -109,6 +109,19 @@ export interface Repository {
   signOut(): Promise<void>
   /** Wipe local data (demo reset). */
   reset?(): Promise<void>
+  /** Offline queue status, when the adapter has one. */
+  syncStatus?(): SyncStatus
+  onSyncStatus?(listener: (s: SyncStatus) => void): Unsubscribe
+  /** Force a flush and pull now (pull-to-refresh, "retry" tap). */
+  syncNow?(): Promise<void>
+}
+
+export interface SyncStatus {
+  pending: number
+  online: boolean
+  flushing: boolean
+  lastPullAt: string | null
+  lastError: string | null
 }
 
 /** Helper for adapters: generate a fresh ISO timestamp. */

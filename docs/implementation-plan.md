@@ -85,9 +85,9 @@ Phase 2 to 4 follow the spec's roadmap. The schema already carries what they nee
 | --- | --- |
 | Phase 1 scope widened to freezer shelf, week plan, cook-week builder with container math, plan-to-list, labels | Done. All ship in local mode. Bad day, week fill, cheap week and low-energy Home are built too, ahead of the review's Phase 2 placement. |
 | Neelix export undocumented | Tolerant importer (`src/domain/importers/neelix.ts`) with a fixture-based test; the versioned `qm-import-v1` contract waits for the real export. Owner action: export `freezer-partner-state-v1` from Neelix. |
-| No Supabase project, hosting, keep-alive | Not done. Migrations are ready; the project, hosting target and keep-alive workflow wait on the owner's org decision (review section 2). |
+| No Supabase project, hosting, keep-alive | Migrations and a keep-alive GitHub Actions workflow (inert until secrets exist) are ready; the project and hosting target wait on the owner's org decision (review section 2). |
 | Instacart production key and adapter | Adapter ships the search-plus-copy plan. The `instacart-link` edge function and `retailers.config.environment` are not built; they need the development key. |
-| Sign-in, invites, first run | RPCs (`create_household`, `create_invite`, `accept_invite`) exist and are SQL-tested. The `/auth`, `/setup` and `/join/:token` screens are not built; the app runs on the demo session until a project exists. |
+| Sign-in, invites, first run | Done: email one-time-code sign-in, `/join/:token` acceptance (held through sign-in), and a first-run household screen when the user has no membership. The RPCs are SQL-tested. Untested against a live project. |
 | RLS recursion, bootstrap, role matrix, child-table household_id, audit columns, invites table | Done in the migrations and tested (`npm run db:test`). |
 | Ingredient link and unit model | Done (`matching.ts`, `units.ts`); the recipe card's "fix" link writes `item_id`. |
 | Satisfied rule, ranking terms, use-it-up, freshness, effort, energy, allergy whole-word matching | Done in `src/domain` with tests; the SQL `check_allergies` now matches whole words too. Allergy aliases (`nuts` covering `almond`) are not implemented. |
@@ -98,7 +98,7 @@ Phase 2 to 4 follow the spec's roadmap. The schema already carries what they nee
 | list_sends, received flow, merged lines | Done. |
 | College Station starter prices, PriceProvider off by default | Done. Starter rows carry a visible chip; `src/integrations/prices/webCheck.ts` ships the interface with a null provider. |
 | Nutrition rough estimate | Done, labeled "estimate" with coverage. FDC lookup is Phase 2. |
-| Offline outbox, patch-only writes, delta ops, apply_ops RPC | Not done. The local adapter is the no-backend mode; the Supabase adapter is online-only. This is the largest open item before two phones share a household. |
+| Offline outbox, patch-only writes, delta ops, apply_ops RPC | Done in the basic form: `SyncedRepository` wraps the Supabase adapter with an IndexedDB mirror, an outbox that flushes in order when online, patch-only updates for existing rows, a full per-household pull on open and on focus, realtime invalidation, and a header chip with a retry tap. Not done: delta ops for counters, the `apply_ops` RPC with base-mismatch sync events, and incremental pulls. |
 | Hard deletes | Clients now soft-delete on every undo and replacement; `remove()` remains only for undo of local-only rows. The RLS delete grant for editors is still in place and should be withdrawn when the outbox lands. |
 | Exit path | PocketBase dropped; any Postgres host. |
 | Hand toggle mirrors only edge controls | Done: tabs and header no longer reverse. |

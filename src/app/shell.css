@@ -58,3 +58,5 @@
 .brand { flex: 0 0 auto; }
 :root[data-text-size='A+'] .text-size-btn svg, :root[data-text-size='A++'] .text-size-btn svg { display: none; }
 .page-title { flex-wrap: wrap; }
+
+.sync-chip { gap: 6px; padding: 0 10px; color: var(--bar-active); }

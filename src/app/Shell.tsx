@@ -3,6 +3,7 @@ import { Icon, IconButton, type IconName } from '@/design/components'
 import { usePrefs } from './prefs'
 import { useSession } from './session'
 import { PartnerButton } from '@/features/partner/PartnerButton'
+import { SyncChip } from './SyncChip'
 
 const TABS: { to: string; label: string; icon: IconName }[] = [
   { to: '/', label: 'Home', icon: 'home' },
@@ -31,6 +32,7 @@ export function Shell() {
             <span className="brand-name">Quartermaster</span>
           </div>
           <div className="topbar-actions">
+            <SyncChip />
             {households.length > 1 ? (
               <label className="household-switch">
                 <span className="visually-hidden">Active household</span>
