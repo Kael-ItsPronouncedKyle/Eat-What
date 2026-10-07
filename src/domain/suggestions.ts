@@ -64,7 +64,7 @@ function recipeEffort(recipe: Recipe): number | null {
 }
 
 function oldestBlock(recipeId: string, ctx: SuggestionContext): FreezerBlock | null {
-  const blocks = ctx.freezerBlocks.filter((b) => !b.deletedAt && b.recipeId === recipeId && b.countRemaining > 0 && (!ctx.personId || !b.personId || b.personId === ctx.personId))
+  const blocks = ctx.freezerBlocks.filter((b) => !b.deletedAt && b.recipeId === recipeId && b.countRemaining > 0 && b.foodType !== 'raw_marinated' && (!ctx.personId || !b.personId || b.personId === ctx.personId))
   blocks.sort((a, b) => (a.cookedOn ?? '').localeCompare(b.cookedOn ?? '') || (a.qualityUntil ?? '').localeCompare(b.qualityUntil ?? ''))
   return blocks[0] ?? null
 }

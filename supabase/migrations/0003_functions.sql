@@ -143,7 +143,7 @@ language sql security invoker stable set search_path = '' as $$
   select ing, r.id, r.applies_to_person_id, r.payload ->> 'substitute', coalesce(r.payload ->> 'severity', 'avoid')
   from unnest(p_ingredients) as ing
   join public.rules r on r.household_id = p_household_id and r.type = 'allergy' and r.active and r.deleted_at is null
-  where lower(ing) like '%' || lower(r.payload ->> 'ingredient') || '%'
+  where lower(ing) ~ ('\m' || regexp_replace(lower(r.payload ->> 'ingredient'), '([.*+?^${}()|\[\]\\])', '\\\1', 'g') || 's?\M')
 $$;
 grant execute on function public.check_allergies(uuid, text[]) to authenticated;
 

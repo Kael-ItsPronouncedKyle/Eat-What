@@ -109,6 +109,8 @@ select app_test.assert((select count(*) from public.routing_rules) = 1, 'routing
 -- Allergy check.
 insert into public.rules (household_id, type, payload) values (:'denton', 'allergy', '{"ingredient":"coconut","substitute":"lime juice","severity":"avoid"}');
 select app_test.assert((select count(*) from public.check_allergies(:'denton', array['coconut milk', 'rice'])) = 1, 'allergy check flags coconut milk');
+insert into public.rules (household_id, type, payload) values (:'denton', 'allergy', '{"ingredient":"egg","severity":"severe"}');
+select app_test.assert((select count(*) from public.check_allergies(:'denton', array['eggplant', 'veggie burger', '2 eggs', 'egg noodles'])) = 2, 'allergy check matches whole words only');
 
 -- Riker joins as agent: may draft a list line, may not mark it ordered, may not delete.
 select public.create_invite(:'denton', 'member', 'riker@example.com', 'agent') as riker_token \gset

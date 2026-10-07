@@ -67,7 +67,7 @@ export async function saveRecipe(
     }))
   const oldIngredients = existing?.ingredients ?? []
   await repo.table('recipes').put(recipe)
-  for (const old of oldIngredients) await repo.table('recipe_ingredients').remove(old.id)
+  for (const old of oldIngredients) await repo.table('recipe_ingredients').softDelete(old.id)
   await repo.table('recipe_ingredients').putMany(rows)
   const summary = existing ? `Updated recipe ${recipe.title}` : `Added recipe ${recipe.title}`
   const event = await logEvent(repo, householdId, actor, { entityType: 'recipes', entityId: recipe.id, action: existing ? 'update' : 'insert', summary, before: existing ?? null, after: recipe })
@@ -75,13 +75,13 @@ export async function saveRecipe(
     recipe,
     event,
     undo: async () => {
-      for (const r of rows) await repo.table('recipe_ingredients').remove(r.id)
+      for (const r of rows) await repo.table('recipe_ingredients').softDelete(r.id)
       if (existing) {
         const { ingredients: _i, ...prev } = existing
         await repo.table('recipes').put(prev)
         await repo.table('recipe_ingredients').putMany(oldIngredients)
       } else {
-        await repo.table('recipes').remove(recipe.id)
+        await repo.table('recipes').softDelete(recipe.id)
       }
       const undo = await logEvent(repo, householdId, actor, { entityType: 'recipes', entityId: recipe.id, action: 'undo', summary: `Undid: ${summary}`, undoOfEventId: event.id })
       await repo.table('activity_events').patch(event.id, { undoneByEventId: undo.id })

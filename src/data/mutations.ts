@@ -80,7 +80,8 @@ export async function insertRow<K extends TableName, T extends RowLike>(
   return {
     event,
     undo: async () => {
-      await col.remove(row.id)
+      // Soft delete so an offline mirror on another phone learns about it (spec: tombstones).
+      await col.softDelete(row.id)
       const undoEvent = await logEvent(repo, row.householdId, actor, { entityType: table, entityId: row.id, action: 'undo', summary: `Undid: ${summary}`, before: row, undoOfEventId: event.id })
       await repo.table('activity_events').patch(event.id, { undoneByEventId: undoEvent.id })
     },

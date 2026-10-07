@@ -43,7 +43,7 @@ export function badDay(
   }
   // Tonight: oldest fitting freezer block, else a no-cook recipe.
   const blocks = ctx.freezerBlocks
-    .filter((b) => !b.deletedAt && b.countRemaining > 0 && (!ctx.personId || !b.personId || b.personId === ctx.personId))
+    .filter((b) => !b.deletedAt && b.countRemaining > 0 && b.foodType !== 'raw_marinated' && (!ctx.personId || !b.personId || b.personId === ctx.personId))
     .sort((a, b) => (a.cookedOn ?? '').localeCompare(b.cookedOn ?? '') || (a.qualityUntil ?? '').localeCompare(b.qualityUntil ?? ''))
   const block = blocks[0] ?? null
   const base = { householdId: ctx.householdId, date: today, slot: 'dinner' as const, personId: ctx.personId ?? null, servings: null, position: 99, status: 'planned' as const, batchId: null, note: null }
@@ -93,7 +93,7 @@ export function autoFill(suggestions: Suggestion[], existing: PlanEntry[], freez
     : allowed
   ).filter((s) => s.mode !== 'freezer_first')
   const blocks = freezerBlocks
-    .filter((b) => !b.deletedAt && b.countRemaining > 0)
+    .filter((b) => !b.deletedAt && b.countRemaining > 0 && b.foodType !== 'raw_marinated')
     .sort((a, b) => (a.cookedOn ?? '').localeCompare(b.cookedOn ?? '') || (a.qualityUntil ?? '').localeCompare(b.qualityUntil ?? ''))
     .map((b) => ({ block: b, left: b.countRemaining }))
   const usedRecipeDates = new Map<string, string[]>()

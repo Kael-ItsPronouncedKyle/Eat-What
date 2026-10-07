@@ -30,11 +30,9 @@
 .tab.is-active { color: var(--bar-active); }
 .tab-label { line-height: 1; }
 :root[data-text-size='A++'] .tab-label { font-size: 13px; }
-.shell[data-hand='left'] .tabbar { flex-direction: row-reverse; }
-.shell[data-hand='left'] .topbar-inner { flex-direction: row-reverse; }
 
 /* Partner (mic) floating button sits above the tab bar, mirrored for left hand. */
-.partner-fab { position: fixed; z-index: 45; right: var(--gutter); bottom: calc(var(--tabbar-h) + var(--safe-bottom) + 14px); }
+.partner-fab { position: fixed; z-index: 45; /* undo bar clears this band, see components.css */ right: var(--gutter); bottom: calc(var(--tabbar-h) + var(--safe-bottom) + 14px); }
 .shell[data-hand='left'] .partner-fab { right: auto; left: var(--gutter); }
 .partner-fab .btn { width: var(--tap-lg); height: var(--tap-lg); border-radius: 50%; background: var(--amber); color: #1a1200; box-shadow: 0 6px 20px rgb(0 0 0 / 0.3); border: 0; }
 .partner-fab .btn.is-listening { background: var(--out); color: #fff; animation: pulse 1s ease-in-out infinite; }

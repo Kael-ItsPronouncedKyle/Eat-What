@@ -51,7 +51,7 @@ export async function undoEvent(repo: Repository, event: ActivityEvent, actor: A
   const col = repo.table(table)
   try {
     if (event.action === 'insert') {
-      await col.remove(event.entityId)
+      await col.softDelete(event.entityId)
     } else if (event.before && typeof event.before === 'object') {
       await col.put(event.before as never)
     } else {

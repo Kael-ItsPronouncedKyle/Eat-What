@@ -53,7 +53,7 @@ export function PriceBook() {
     <div className="page">
       <BackHeader title="Price book" to="/shop" />
       <p className="muted" style={{ marginBottom: 'var(--space-3)' }}>
-        {household?.name}{row?.zip ? ` · ZIP ${row.zip}` : ''}. Prices come from receipts (most trusted), what you type, and a weekly web check. Unknown prices stay blank.
+        {household?.name}{row?.zip ? ` · ZIP ${row.zip}` : ''}. Prices come from receipts (most trusted) and what you type; a weekly web check can be turned on later. Unknown prices stay blank.
       </p>
       {stale > 0 ? (
         <div className="expiry-banner" role="status" style={{ marginBottom: 'var(--space-3)' }}>

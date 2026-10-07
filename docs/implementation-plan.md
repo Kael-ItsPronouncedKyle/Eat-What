@@ -76,6 +76,34 @@ Phase 2 to 4 follow the spec's roadmap. The schema already carries what they nee
 - `npm run test:e2e`: Playwright on a Pixel 7 profile: navigation, text size persistence, no horizontal scroll at A++, 48 px tap targets.
 - `npm run typecheck`, `npm run lint`, `npm run build`.
 
+
+## Status against the readiness review
+
+`docs/spec-review.md` lists the blockers and majors. What the build does about each, as of this delivery:
+
+| Review item | Status |
+| --- | --- |
+| Phase 1 scope widened to freezer shelf, week plan, cook-week builder with container math, plan-to-list, labels | Done. All ship in local mode. Bad day, week fill, cheap week and low-energy Home are built too, ahead of the review's Phase 2 placement. |
+| Neelix export undocumented | Tolerant importer (`src/domain/importers/neelix.ts`) with a fixture-based test; the versioned `qm-import-v1` contract waits for the real export. Owner action: export `freezer-partner-state-v1` from Neelix. |
+| No Supabase project, hosting, keep-alive | Not done. Migrations are ready; the project, hosting target and keep-alive workflow wait on the owner's org decision (review section 2). |
+| Instacart production key and adapter | Adapter ships the search-plus-copy plan. The `instacart-link` edge function and `retailers.config.environment` are not built; they need the development key. |
+| Sign-in, invites, first run | RPCs (`create_household`, `create_invite`, `accept_invite`) exist and are SQL-tested. The `/auth`, `/setup` and `/join/:token` screens are not built; the app runs on the demo session until a project exists. |
+| RLS recursion, bootstrap, role matrix, child-table household_id, audit columns, invites table | Done in the migrations and tested (`npm run db:test`). |
+| Ingredient link and unit model | Done (`matching.ts`, `units.ts`); the recipe card's "fix" link writes `item_id`. |
+| Satisfied rule, ranking terms, use-it-up, freshness, effort, energy, allergy whole-word matching | Done in `src/domain` with tests; the SQL `check_allergies` now matches whole words too. Allergy aliases (`nuts` covering `almond`) are not implemented. |
+| Depletion review, cook sessions, activity log | Done: end-of-cook sheet writes freezer blocks, confirmed deductions, a cook session, and one undoable event. |
+| Container model with cavities | Not done. Containers count cavities as objects (`count_owned` = blocks that fit at once). The `cavities` column is a follow-up. |
+| Dump-kit batches | Partly: `kind = dump_kit`, raw blocks excluded from freezer-first and bad day. No assemble-phase steps or "Cook 1" on raw blocks yet. |
+| Cook-week timeline rows (shop, thaw, label, pop, refill) | Partly: batch, sit, and fill rows only. |
+| list_sends, received flow, merged lines | Done. |
+| College Station starter prices, PriceProvider off by default | Done. Starter rows carry a visible chip; `src/integrations/prices/webCheck.ts` ships the interface with a null provider. |
+| Nutrition rough estimate | Done, labeled "estimate" with coverage. FDC lookup is Phase 2. |
+| Offline outbox, patch-only writes, delta ops, apply_ops RPC | Not done. The local adapter is the no-backend mode; the Supabase adapter is online-only. This is the largest open item before two phones share a household. |
+| Hard deletes | Clients now soft-delete on every undo and replacement; `remove()` remains only for undo of local-only rows. The RLS delete grant for editors is still in place and should be withdrawn when the outbox lands. |
+| Exit path | PocketBase dropped; any Postgres host. |
+| Hand toggle mirrors only edge controls | Done: tabs and header no longer reverse. |
+| Print route for labels and the cook week | Partly: labels copy to the clipboard and the cook week prints as plain text; no `@page` layout yet. |
+
 ## What the owner still decides
 
 See `docs/spec-review.md`, section "Decisions only the owner can make". The build runs on defaults until then.
