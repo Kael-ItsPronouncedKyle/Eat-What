@@ -35,6 +35,10 @@ Phone-size captures of the seeded Denton household, from `scripts/screenshot.mjs
 | --- | --- | --- | --- |
 | ![Shop](docs/screenshots/shop.png) | ![Price book](docs/screenshots/prices.png) | ![House](docs/screenshots/house.png) | ![Pantry at A++](docs/screenshots/pantry-a-plus-plus.png) |
 
+## CI
+
+`.github/workflows/ci.yml` runs typecheck, lint, unit tests, build, the SQL tenancy tests, and the Playwright flows on every push and pull request. `price-check.yml` runs the weekly web price check once the Supabase secrets exist.
+
 ## Checks
 
 ```bash

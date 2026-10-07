@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { Link } from 'react-router'
 import type { Item, PriceSource } from '@/domain/types'
 import { priceFor } from '@/domain/budget'
 import { formatCents } from '@/domain/money'
@@ -59,7 +60,7 @@ export function PriceBook() {
     <div className="page">
       <BackHeader title="Price book" to="/shop" />
       <p className="muted" style={{ marginBottom: 'var(--space-3)' }}>
-        {household?.name}{row?.zip ? ` · ZIP ${row.zip}` : ''}. Prices come from receipts (most trusted) and what you type; a weekly web check can be turned on later. Unknown prices stay blank.
+        {household?.name}{row?.zip ? ` · ZIP ${row.zip}` : ''}. Prices come from receipts (most trusted), what you type, and the <Link to="/house/prices">weekly web check</Link> when it is on. Unknown prices stay blank.
       </p>
       {stale > 0 ? (
         <div className="expiry-banner" role="status" style={{ marginBottom: 'var(--space-3)' }}>
@@ -81,6 +82,12 @@ export function PriceBook() {
               <div className="row-title">{item.name}</div>
               <div className="row-subtitle muted small">
                 {quote ? `${data.retailers.find((r) => r.id === quote.price.retailerId)?.name ?? 'Any'} · ${formatDate(quote.price.observedOn)} · ${SOURCE_LABEL[quote.price.source]}` : 'No price yet'}
+                {quote?.price.source === 'web' && webSourceUrl(quote.price.note) ? (
+                  <>
+                    {' · '}
+                    <a href={webSourceUrl(quote.price.note)!} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>source</a>
+                  </>
+                ) : null}
               </div>
             </div>
             <div className="row-right num">
@@ -125,4 +132,10 @@ export function PriceBook() {
       </Sheet>
     </div>
   )
+}
+
+/** The web check stores the page it read in the note: "Web check (confidence 0.8): https://..." */
+function webSourceUrl(note: string | null): string | null {
+  const m = note?.match(/https?:\/\/\S+/)
+  return m ? m[0] : null
 }

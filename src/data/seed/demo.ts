@@ -33,15 +33,15 @@ interface StapleSpec {
 }
 
 const STAPLES: StapleSpec[] = [
-  { name: 'Eggs', category: 'dairy', location: 'fridge', mode: 'count', qty: 8, unit: 'each', par: 6, useByDays: 21, price: 349, priceUnit: 'dozen' },
-  { name: 'Milk', category: 'dairy', location: 'fridge', status: 'ok', useByDays: 7, price: 329, priceUnit: 'gallon' },
+  { name: 'Eggs', category: 'dairy', location: 'fridge', mode: 'count', qty: 8, unit: 'each', par: 6, useByDays: 21, price: 249, priceUnit: 'dozen' },
+  { name: 'Milk', category: 'dairy', location: 'fridge', status: 'ok', useByDays: 7, price: 379, priceUnit: 'gallon' },
   { name: 'Half and half', category: 'dairy', location: 'fridge', status: 'ok', useByDays: 2, price: 299, priceUnit: 'quart' },
   { name: 'Butter', category: 'dairy', location: 'fridge', mode: 'count', qty: 2, unit: 'stick', par: 2, price: 449, priceUnit: 'lb' },
   { name: 'Sharp cheddar', category: 'dairy', location: 'fridge', status: 'ok', useByDays: 30, price: 399, priceUnit: 'lb' },
   { name: 'Cream cheese', category: 'dairy', location: 'fridge', status: 'low', useByDays: 20, price: 249, priceUnit: 'each' },
   { name: 'Sour cream', category: 'dairy', location: 'fridge', status: 'ok', useByDays: 14, price: 199, priceUnit: 'each' },
-  { name: 'Boneless skinless chicken thighs', category: 'meat', location: 'freezer', mode: 'count', qty: 1, unit: 'lb', par: 3, price: 299, priceUnit: 'lb' },
-  { name: 'Ground beef', category: 'meat', location: 'freezer', mode: 'count', qty: 2, unit: 'lb', par: 2, price: 499, priceUnit: 'lb' },
+  { name: 'Boneless skinless chicken thighs', category: 'meat', location: 'freezer', mode: 'count', qty: 1, unit: 'lb', par: 3, price: 329, priceUnit: 'lb' },
+  { name: 'Ground beef', category: 'meat', location: 'freezer', mode: 'count', qty: 2, unit: 'lb', par: 2, price: 599, priceUnit: 'lb' },
   { name: 'Andouille sausage', category: 'meat', location: 'freezer', mode: 'count', qty: 12, unit: 'oz', par: 12, price: 599, priceUnit: 'lb' },
   { name: 'Beef chuck roast', category: 'meat', location: 'freezer', status: 'out', price: 699, priceUnit: 'lb' },
   { name: 'Bacon', category: 'meat', location: 'fridge', status: 'ok', useByDays: 10, price: 649, priceUnit: 'lb' },
@@ -99,7 +99,10 @@ const STAPLES: StapleSpec[] = [
   { name: 'Dog food', category: 'pet', location: 'garage', status: 'low', price: 4499, priceUnit: 'bag' },
 ]
 
-/** H-E-B tends to run a little under Kroger on store brands; still estimates. */
+/** H-E-B tends to run a little under Kroger on store brands; still estimates.
+    Spot check, Oct 2026: BLS US city average (Feb 2026) eggs $2.50/dozen, whole milk $4.03/gal, ground beef about $6.70/lb;
+    H-E-B San Antonio (KSAT, Jun 2026) milk $3.66, eggs $1.47, store-brand ground beef $5.49/lb. The seed sits between them.
+    None of these are College Station or Denton shelf prices; the weekly web check or a receipt replaces every starter row. */
 const CS_PRICE_FACTOR = 0.93
 
 interface HouseholdSeed {

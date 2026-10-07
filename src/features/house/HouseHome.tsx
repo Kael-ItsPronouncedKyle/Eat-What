@@ -29,6 +29,7 @@ export function HouseHome() {
     { to: '/house/retailers', icon: 'shop', title: 'Retailers and routing', subtitle: data.retailers.map((r) => r.name).join(', ') || 'None yet' },
     { to: '/house/locations', icon: 'pantry', title: 'Locations', subtitle: data.locations.filter((l) => !l.isFreezerShelf).map((l) => l.name).join(', ') },
     { to: '/house/containers', icon: 'snowflake', title: 'Freezer kit', subtitle: data.containers.map((c) => `${c.countOwned} ${c.name}`).join(', ') || 'No containers yet' },
+    { to: '/house/prices', icon: 'shop', title: 'Price check', subtitle: row?.settings.priceCheck?.enabled ? `Weekly, near ZIP ${row.zip ?? '?'}` : 'Weekly web check, off' },
     { to: '/house/notifications', icon: 'clock', title: 'Notifications', subtitle: row?.quietFrom ? `Quiet ${row.quietFrom} to ${row.quietTo}` : 'Daily and weekly reminders' },
     { to: '/house/activity', icon: 'list', title: 'Activity feed', subtitle: 'Every change, with undo' },
     { to: '/house/display', icon: 'textSize', title: 'Display and access', subtitle: 'Text size, theme, font, handedness' },

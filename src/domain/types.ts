@@ -72,6 +72,8 @@ export interface HouseholdSettings {
   qualityDays?: Partial<Record<FoodType, number>>
   weeklyShopDay?: number
   weeklyShopTime?: string
+  /** The optional weekly web price check (House > Price check). Off until an owner turns it on. */
+  priceCheck?: { enabled?: boolean; lastRunAt?: string; lastRunWritten?: number; lastRunChecked?: number }
 }
 
 export interface Membership {
