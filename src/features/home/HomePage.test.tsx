@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it } from 'vitest'
-import { screen, waitFor } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { cleanup, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { PlanEntry, Recipe, RecipeIngredient, TenantRow } from '@/domain/types'
 import { newId } from '@/domain/ids'
@@ -37,6 +37,8 @@ describe('HomePage', () => {
     // Energy is stored per browser and resets each morning; start every test on "some".
     localStorage.clear()
   })
+  // Vitest runs without globals, so Testing Library does not unmount between tests on its own.
+  afterEach(() => cleanup())
 
   it('shows the energy selector and tonight, and a little-energy day collapses to three big buttons', async () => {
     const user = userEvent.setup()
@@ -86,12 +88,16 @@ describe('HomePage', () => {
     expect(await screen.findByText(/Tonight is .* from the freezer/)).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Do it' }))
 
+    // Tonight's cook takes tomorrow; anything already there cascades one day further (domain rule).
     await waitFor(async () => {
       const moved = await repo.table('plan_entries').get(entry.id)
       expect(moved?.date).toBe(addDays(today(), 1))
     })
-    const blocksTonightAfter = (await repo.table('plan_entries').list(denton)).filter((e) => e.date === today() && e.kind === 'freezer_block').length
-    expect(blocksTonightAfter).toBe(blocksTonightBefore + 1)
+    // Tonight's freezer entry is written after the moves, so wait for it too.
+    await waitFor(async () => {
+      const blocksTonightAfter = (await repo.table('plan_entries').list(denton)).filter((e) => e.date === today() && e.kind === 'freezer_block').length
+      expect(blocksTonightAfter).toBe(blocksTonightBefore + 1)
+    })
     const undoBar = await screen.findByTestId('undo-bar')
     expect(undoBar).toHaveTextContent(/Tonight is/)
 
@@ -100,8 +106,10 @@ describe('HomePage', () => {
       const back = await repo.table('plan_entries').get(entry.id)
       expect(back?.date).toBe(today())
     })
-    const blocksTonightUndone = (await repo.table('plan_entries').list(denton)).filter((e) => e.date === today() && e.kind === 'freezer_block').length
-    expect(blocksTonightUndone).toBe(blocksTonightBefore)
+    await waitFor(async () => {
+      const blocksTonightUndone = (await repo.table('plan_entries').list(denton)).filter((e) => e.date === today() && e.kind === 'freezer_block').length
+      expect(blocksTonightUndone).toBe(blocksTonightBefore)
+    })
   })
 
   it('prices tonight from the active household: College Station uses its own H-E-B starter prices', async () => {
