@@ -157,10 +157,21 @@ export async function finishCook(repo: Repository, householdId: string, input: F
   const entryBefore = input.planEntry
   const batchBefore = input.batch
   const fromBlockBefore = input.fromBlock ?? null
-  const fromBlockAfter: FreezerBlock | null = fromBlockBefore ? { ...fromBlockBefore, countRemaining: Math.max(0, fromBlockBefore.countRemaining - 1), updatedAt: now } : null
+  // Cook 1 takes one off the block as a delta op (like Eat 1) so two phones cooking offline both land; a full-row replace is the fallback.
+  let fromBlockAfter: FreezerBlock | null = fromBlockBefore ? { ...fromBlockBefore, countRemaining: Math.max(0, fromBlockBefore.countRemaining - 1), updatedAt: now } : null
+  let fromBlockApplied = 0
   if (afterItems.length) await repo.table('items').putMany(afterItems)
   if (blocks.length) await repo.table('freezer_blocks').putMany(blocks)
-  if (fromBlockAfter) await repo.table('freezer_blocks').put(fromBlockAfter)
+  if (fromBlockBefore && fromBlockAfter) {
+    const col = repo.table('freezer_blocks')
+    const adjusted = col.adjust ? await col.adjust(fromBlockBefore.id, 'countRemaining', -1, { base: fromBlockBefore.countRemaining }) : null
+    if (adjusted) {
+      fromBlockAfter = adjusted
+      fromBlockApplied = adjusted.countRemaining - fromBlockBefore.countRemaining
+    } else {
+      await col.put(fromBlockAfter)
+    }
+  }
   await repo.table('cook_sessions').put(session)
   await repo.table('recipes').put(recipeAfter)
   if (entryBefore) await repo.table('plan_entries').put({ ...entryBefore, status: 'cooked', updatedAt: now })
@@ -175,7 +186,11 @@ export async function finishCook(repo: Repository, householdId: string, input: F
     undo: async () => {
       if (beforeItems.length) await repo.table('items').putMany(beforeItems)
       for (const b of blocks) await repo.table('freezer_blocks').remove(b.id)
-      if (fromBlockBefore) await repo.table('freezer_blocks').put(fromBlockBefore)
+      if (fromBlockBefore) {
+        const col = repo.table('freezer_blocks')
+        const restored = fromBlockApplied !== 0 && col.adjust ? await col.adjust(fromBlockBefore.id, 'countRemaining', -fromBlockApplied) : null
+        if (!restored) await col.put(fromBlockBefore)
+      }
       if (input.session) await repo.table('cook_sessions').put(input.session)
       else await repo.table('cook_sessions').remove(session.id)
       await repo.table('recipes').put(recipeBefore)

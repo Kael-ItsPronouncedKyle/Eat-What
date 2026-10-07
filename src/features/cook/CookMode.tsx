@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router'
-import type { Deduction, FreezerBlock, StepPhase, TenantRow } from '@/domain/types'
+import type { Deduction, FoodType, FreezerBlock, Recipe, StepPhase, TenantRow } from '@/domain/types'
 import { recipeAvailability } from '@/domain/matching'
 import { applySubstitutions } from '@/domain/rules'
 import { convert, formatQuantity, normalizeUnit } from '@/domain/units'
@@ -37,7 +37,8 @@ export function CookMode() {
   const fromBlock = data.freezer_blocks.find((b) => b.id === params.get('block')) ?? null
   const phase: StepPhase | null = fromBlock ? 'cook' : batch?.kind === 'dump_kit' ? 'assemble' : null
   const planEntry = data.plan_entries.find((e) => e.recipeId === recipeId && e.date === today && e.status === 'planned') ?? null
-  const servings = Number(params.get('servings')) || (batch && recipe ? recipe.baseYield * batch.multiplier : recipe?.baseYield ?? 4)
+  // One kit from the freezer makes what the block says; a batch makes the recipe times its multiplier.
+  const servings = Number(params.get('servings')) || (fromBlock ? fromBlock.servingsPerBlock : batch && recipe ? recipe.baseYield * batch.multiplier : recipe?.baseYield ?? 4)
   const scale = recipe ? servings / recipe.baseYield : 1
   const [i, setI] = useState(0)
   const [finishing, setFinishing] = useState(false)
@@ -215,6 +216,14 @@ function Timer({ minutes, onClear }: { minutes: number; onClear: () => void }) {
   )
 }
 
+/** The food type for leftovers of a kit cooked from the freezer: the raw words and the dump-kit tag drop out of the guess. */
+function cookedFoodType(recipe: Pick<Recipe, 'title' | 'tags' | 'mealType'>): FoodType {
+  const guess = guessFoodType(recipe)
+  if (guess !== 'raw_marinated') return guess
+  const cooked = guessFoodType({ title: recipe.title.replace(/\b(marinated|marinade|dump|kit|packet)\b/gi, ' '), tags: recipe.tags.filter((t) => t !== 'dump_kit'), mealType: recipe.mealType })
+  return cooked === 'raw_marinated' ? 'other' : cooked
+}
+
 /** End of cook: how many portions went in, which container, where they sit, who they're for; then the depletion confirm.
     A dump-kit batch (phase 'assemble') writes raw kits instead of cooked blocks. Cook 1 from a raw block (fromBlockId) takes one off that block
     and offers no new blocks by default; the ingredients were already in the bag, so nothing comes off the pantry. */
@@ -262,7 +271,8 @@ function FinishSheet({ recipeId, servings, scale, batchId, planEntryId, phase, f
 
   const save = async () => {
     if (!household) return
-    const foodType = assembling ? 'raw_marinated' : guessFoodType(recipe)
+    // Bagging writes raw kits. Leftovers from a kit cooked from the freezer are cooked food, never raw again.
+    const foodType = assembling ? 'raw_marinated' : fromBlock ? cookedFoodType(recipe) : guessFoodType(recipe)
     const blocks: Omit<FreezerBlock, keyof TenantRow>[] = freeze
       ? lines
           .filter((l) => l.count > 0)

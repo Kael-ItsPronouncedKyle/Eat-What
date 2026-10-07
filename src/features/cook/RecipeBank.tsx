@@ -1,14 +1,24 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
 import { BackHeader } from '@/app/Shell'
 import { useHouseholdData } from '@/app/hooks/useHouseholdData'
 import { effortLabel } from '@/domain/effort'
-import { Badge, Chip, EmptyState, Icon, TextField } from '@/design/components'
+import { Badge, Button, Chip, EmptyState, Icon, TextField } from '@/design/components'
+import { GenerateSheet, ImportUrlSheet } from './RecipeIntake'
 
 /** The household's recipe bank: searchable, filterable by cuisine and meal, with drafts badged. */
 export function RecipeBank() {
   const data = useHouseholdData()
+  const [params, setParams] = useSearchParams()
   const [q, setQ] = useState('')
+  const [importOpen, setImportOpen] = useState(false)
+  // The partner's "make me a recipe" lands here with ?generate=<brief>, which opens the sheet filled in.
+  const generateBrief = params.get('generate')
+  const [generateOpen, setGenerateOpen] = useState(generateBrief !== null)
+  const closeGenerate = () => {
+    setGenerateOpen(false)
+    if (generateBrief !== null) setParams({}, { replace: true })
+  }
   const [cuisine, setCuisine] = useState<string | null>(null)
   const [showArchived, setShowArchived] = useState(false)
   const cuisines = useMemo(() => [...new Set(data.recipes.map((r) => r.cuisine).filter((c): c is string => !!c))].sort(), [data.recipes])
@@ -25,6 +35,10 @@ export function RecipeBank() {
     <div className="page">
       <BackHeader title="Recipes" to="/cook" right={<Link to="/cook/recipes/new" className="btn btn-primary"><Icon name="plus" /> <span className="btn-label">New</span></Link>} />
       <div className="stack">
+        <div className="row" style={{ gap: 'var(--space-2)' }}>
+          <Button icon="link" className="grow" onClick={() => setImportOpen(true)}>Import from URL</Button>
+          <Button icon="sparkle" className="grow" onClick={() => setGenerateOpen(true)}>Make me a recipe</Button>
+        </div>
         <TextField label="Search" placeholder="Title, cuisine, or ingredient" value={q} onChange={(e) => setQ(e.target.value)} />
         <div className="mode-chips" role="group" aria-label="Cuisine">
           <Chip selected={cuisine === null} onClick={() => setCuisine(null)}>All</Chip>
@@ -58,6 +72,8 @@ export function RecipeBank() {
           ))}
         </div>
       )}
+      <ImportUrlSheet open={importOpen} onClose={() => setImportOpen(false)} />
+      <GenerateSheet key={generateBrief ?? ''} open={generateOpen} onClose={closeGenerate} initialRequest={generateBrief ?? ''} />
     </div>
   )
 }

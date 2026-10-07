@@ -149,7 +149,7 @@ export function RecipeEditor() {
             </p>
             <div className="stack">
               {steps.map((s, idx) => (
-                <div key={`${idx}-${s.text}`} className="spread" style={{ gap: 'var(--space-3)' }}>
+                <div key={`${idx}-${s.text}`} className="stack" style={{ gap: 'var(--space-2)' }}>
                   <span className="small" style={{ minWidth: 0 }}>{idx + 1}. {s.text}</span>
                   <Segmented<StepPhase>
                     label={`Step ${idx + 1} phase`}

@@ -12,6 +12,8 @@ import { addListLine, adjustItemQty, insertRow, setItemQty, setItemStatus, type 
 import { nowIso, type Repository } from '@/data/repository'
 import { buildItem } from '@/features/pantry/mutations'
 import { Badge, Button, Card, Chip, Icon, SelectField, Sheet, TextArea } from '@/design/components'
+import { hasAiBackend, parseIntentRemote } from '@/integrations/ai'
+import { fromRemoteIntents } from './remote'
 import {
   CONFIDENCE,
   STATUS_WORD,
@@ -142,6 +144,8 @@ export function PartnerSheet({ open, onClose, onListeningChange }: PartnerSheetP
     setSpokenFallback(null)
     setTranscriptConfidence(null)
     setVoiceNote(null)
+    setAnsweredBy(null)
+    setServerNote(null)
   }, [])
 
   const close = useCallback(() => {
@@ -162,17 +166,46 @@ export function PartnerSheet({ open, onClose, onListeningChange }: PartnerSheetP
     [],
   )
 
+  // Which parser answered: the server one when a backend exists and it understood, else the rules on this phone.
+  const [answeredBy, setAnsweredBy] = useState<'server' | 'local' | null>(null)
+  const [serverNote, setServerNote] = useState<string | null>(null)
+  const [thinking, setThinking] = useState(false)
   const understand = useCallback(
-    (raw: string, from: 'typed' | 'voice') => {
+    async (raw: string, from: 'typed' | 'voice') => {
       const said = raw.trim()
       if (!said) return
-      const r = parseUtterance(said, ctx)
       setUtterance(said)
       setSource(from)
-      setResult(r)
       setFixes({})
       setFixing({})
       setSpokenFallback(null)
+      setServerNote(null)
+      let r: ParseResult | null = null
+      let by: 'server' | 'local' = 'local'
+      if (hasAiBackend() && data.householdId) {
+        setThinking(true)
+        try {
+          const remote = await parseIntentRemote(data.householdId, said, today)
+          if (remote.data) {
+            const outcome = fromRemoteIntents(remote.data.intents, ctx)
+            if (outcome.kind === 'generate') {
+              setThinking(false)
+              navigate(`/cook/recipes?generate=${encodeURIComponent(outcome.brief)}`)
+              close()
+              return
+            }
+            if (outcome.kind === 'changes') {
+              r = outcome.result
+              by = 'server'
+            }
+          } else if (remote.error) setServerNote(remote.error)
+        } finally {
+          setThinking(false)
+        }
+      }
+      if (!r) r = parseUtterance(said, ctx)
+      setAnsweredBy(by)
+      setResult(r)
       const first = r.intents[0]
       if (first?.kind === 'recipe.suggest') {
         navigate('/cook')
@@ -181,7 +214,7 @@ export function PartnerSheet({ open, onClose, onListeningChange }: PartnerSheetP
       }
       if ((first?.kind === 'inventory.query' || first?.kind === 'unknown') && from === 'voice') speak(r.summary.join('. '))
     },
-    [ctx, navigate, close],
+    [ctx, data.householdId, today, navigate, close],
   )
   // The mic's onend fires after a render or two; read the latest parser through a ref set outside render.
   const understandRef = useRef(understand)
@@ -231,7 +264,7 @@ export function PartnerSheet({ open, onClose, onListeningChange }: PartnerSheetP
       if (said) {
         setTranscriptConfidence(confidence)
         setText(said)
-        understandRef.current(said, 'voice')
+        void understandRef.current(said, 'voice')
       }
     }
     recognition.current = rec
@@ -255,6 +288,7 @@ export function PartnerSheet({ open, onClose, onListeningChange }: PartnerSheetP
     setUtterance('read my pantry')
     setSource('typed')
     setResult(r)
+    setAnsweredBy('local')
     setFixes({})
     setFixing({})
     setSpokenFallback(speak(sentence) ? null : 'Reading aloud is not available here, so here it is in writing.')
@@ -357,7 +391,7 @@ export function PartnerSheet({ open, onClose, onListeningChange }: PartnerSheetP
         aria-busy={data.loading || undefined}
         onSubmit={(e) => {
           e.preventDefault()
-          if (!data.loading) understand(text, 'typed')
+          if (!data.loading) void understand(text, 'typed')
         }}
       >
         <TextArea
@@ -371,7 +405,7 @@ export function PartnerSheet({ open, onClose, onListeningChange }: PartnerSheetP
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault()
-              if (!data.loading) understand(text, 'typed')
+              if (!data.loading) void understand(text, 'typed')
             }
           }}
         />
@@ -386,7 +420,7 @@ export function PartnerSheet({ open, onClose, onListeningChange }: PartnerSheetP
           >
             <Icon name="mic" size="1.6em" />
           </button>
-          <Button type="submit" variant="primary" size="lg" className="grow" iconRight="arrowRight" disabled={!text.trim() || listening || data.loading}>
+          <Button type="submit" variant="primary" size="lg" className="grow" iconRight="arrowRight" loading={thinking} disabled={!text.trim() || listening || data.loading || thinking}>
             Go
           </Button>
           <Button variant="ghost" className="partner-read" icon="volume" onClick={readPantry} disabled={data.loading}>
@@ -394,7 +428,7 @@ export function PartnerSheet({ open, onClose, onListeningChange }: PartnerSheetP
           </Button>
         </div>
         <div className="partner-transcript" role="status" aria-live="polite">
-          {listening ? (interim ? `Hearing: "${interim}"` : 'Listening...') : (voiceNote ?? (canListen ? '' : VOICE_NOTE))}
+          {listening ? (interim ? `Hearing: "${interim}"` : 'Listening...') : thinking ? 'Asking the server...' : (voiceNote ?? (canListen ? '' : VOICE_NOTE))}
         </div>
       </form>
 
@@ -406,13 +440,20 @@ export function PartnerSheet({ open, onClose, onListeningChange }: PartnerSheetP
               disabled={data.loading}
               onClick={() => {
                 setText(ex)
-                understand(ex, 'typed')
+                void understand(ex, 'typed')
               }}
             >
               {ex}
             </Chip>
           ))}
         </div>
+      ) : null}
+
+      {result && answeredBy ? (
+        <p className="small muted partner-answered-by" role="status">
+          <Badge tone={answeredBy === 'server' ? 'accent' : undefined}>{answeredBy === 'server' ? 'Understood by the server' : 'Understood on this phone'}</Badge>
+          {serverNote ? <span> {serverNote}</span> : null}
+        </p>
       ) : null}
 
       {result && first?.kind === 'unknown' ? (
