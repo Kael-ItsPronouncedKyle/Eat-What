@@ -204,10 +204,17 @@ export class SyncedRepository implements Repository {
   flush(): Promise<void> {
     if (this.flushPromise) {
       // A pass is running (it may have found us offline a moment ago): run one more after it, shared by every caller.
-      this.flushQueued ??= this.flushPromise.then(() => {
-        this.flushQueued = null
-        return this.flush()
-      })
+      // A pass that failed must not pin the follow-up forever: clear the slot either way, then run again.
+      this.flushQueued ??= this.flushPromise.then(
+        () => {
+          this.flushQueued = null
+          return this.flush()
+        },
+        () => {
+          this.flushQueued = null
+          return this.flush()
+        },
+      )
       return this.flushQueued
     }
     this.flushPromise = (async () => {

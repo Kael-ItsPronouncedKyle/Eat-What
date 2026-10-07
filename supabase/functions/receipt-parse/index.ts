@@ -49,9 +49,11 @@ Deno.serve(async (req) => {
     const { data: blob, error } = await caller.admin.storage.from('receipts').download(body.storagePath)
     if (error || !blob) return json({ error: `Could not open the photo: ${error?.message ?? 'not found'}` }, 404)
     if (blob.size > MAX_IMAGE_BYTES) return json({ error: 'That photo is too big. Try a smaller one (under 5 MB).' }, 413)
-    const type = (blob.type || 'image/jpeg') as MediaType
+    const bytes = new Uint8Array(await blob.arrayBuffer())
+    // Storage often reports a generic type; the first bytes of the file say what it really is.
+    const type = sniffMediaType(bytes) ?? ((blob.type || 'image/jpeg') as MediaType)
     mediaType = MEDIA.includes(type) ? type : 'image/jpeg'
-    data = toBase64(new Uint8Array(await blob.arrayBuffer()))
+    data = toBase64(bytes)
   } else if (typeof body.imageBase64 === 'string' && body.imageBase64) {
     const raw = body.imageBase64.replace(/^data:[^;]+;base64,/, '')
     if (raw.length > MAX_IMAGE_BYTES * 1.4) return json({ error: 'That photo is too big. Try a smaller one (under 5 MB).' }, 413)
@@ -110,6 +112,16 @@ export function cleanReceipt(raw: unknown): ReceiptOut | null {
     totalCents: cents(o.totalCents),
     lines,
   }
+}
+
+/** JPEG, PNG, GIF and WebP by their magic bytes; null when it is none of those. */
+export function sniffMediaType(b: Uint8Array): MediaType | null {
+  if (b.length < 12) return null
+  if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'image/jpeg'
+  if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return 'image/png'
+  if (b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x38) return 'image/gif'
+  if (b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 && b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50) return 'image/webp'
+  return null
 }
 
 function toBase64(bytes: Uint8Array): string {

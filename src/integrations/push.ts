@@ -37,9 +37,19 @@ export async function pushStatus(): Promise<PushStatus> {
   return current ? 'on' : 'off'
 }
 
-async function registration(): Promise<ServiceWorkerRegistration | null> {
+/** How long subscribe() waits for the service worker to finish installing. `serviceWorker.ready` never settles when no
+    worker is registered (dev mode, or a failed registration), so the wait is capped. */
+export const READY_TIMEOUT_MS = 5000
+
+/** The active registration, or null. With `wait` it also gives a worker that is still installing a few seconds. */
+async function registration(wait = false): Promise<ServiceWorkerRegistration | null> {
   try {
-    return (await navigator.serviceWorker.getRegistration()) ?? (await navigator.serviceWorker.ready)
+    const current = await navigator.serviceWorker.getRegistration()
+    if (current || !wait) return current ?? null
+    return await Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), READY_TIMEOUT_MS)),
+    ])
   } catch {
     return null
   }
@@ -61,7 +71,7 @@ export async function subscribe(repo: Repository, userId: string, publicKey: str
   if (!publicKey) throw new Error('Push is not set up on this server yet.')
   const permission = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission()
   if (permission !== 'granted') throw new Error('Notifications are blocked for this site. Allow them in your browser settings, then try again.')
-  const reg = await registration()
+  const reg = await registration(true)
   if (!reg) throw new Error('The app is not installed as a service worker yet. Reload once and try again.')
   const sub = (await reg.pushManager.getSubscription()) ?? (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(publicKey) }))
   const row = toRow(sub, userId)

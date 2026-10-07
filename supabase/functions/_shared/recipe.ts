@@ -21,6 +21,7 @@ export interface RecipeOut {
 
 const MEAL_TYPES = new Set(['breakfast', 'lunch', 'dinner', 'snack', 'side', 'dessert', 'component'])
 const EQUIPMENT = new Set(['crockpot', 'oven', 'stovetop', 'grill', 'microwave', 'air_fryer', 'instant_pot', 'sheet_pan', 'blender', 'souper_cubes', 'ninja_woodfire'])
+const YIELD_UNITS = new Set(['servings', 'cups', 'quarts', 'pints', 'liters', 'ml'])
 const TAGS = new Set(['one_pot', 'no_chop', 'sheet_pan', 'freezer_safe', 'cook_from_frozen', 'microwave_only', 'dump_kit', 'seated_friendly', 'crockpot', 'grill'])
 
 /** The JSON shape the prompts ask for, spelled out once so both functions say the same thing. */
@@ -73,6 +74,7 @@ export function cleanRecipe(raw: unknown, sourceUrl: string | null): RecipeOut |
     .slice(0, 60)
   const mealType = asString(o.mealType, 20)?.toLowerCase() ?? null
   const yieldN = asNumber(o.baseYield)
+  const yieldUnit = asString(o.yieldUnit, 20)?.toLowerCase() ?? 'servings'
   const minutes = (v: unknown) => {
     const n = asNumber(v)
     return n !== null && n >= 0 ? Math.round(n) : null
@@ -83,7 +85,7 @@ export function cleanRecipe(raw: unknown, sourceUrl: string | null): RecipeOut |
     cuisine: asString(o.cuisine, 60),
     mealType: mealType && MEAL_TYPES.has(mealType) ? (mealType as RecipeOut['mealType']) : null,
     baseYield: yieldN && yieldN > 0 ? yieldN : 4,
-    yieldUnit: asString(o.yieldUnit, 20)?.toLowerCase() ?? 'servings',
+    yieldUnit: YIELD_UNITS.has(yieldUnit) ? yieldUnit : 'servings',
     ingredients,
     steps,
     activeMinutes: minutes(o.activeMinutes),

@@ -94,6 +94,8 @@ async function fetchPage(url: URL): Promise<string> {
       headers: { 'User-Agent': 'Mozilla/5.0 (compatible; QuartermasterRecipeImport/1.0)', Accept: 'text/html,application/xhtml+xml' },
     })
     if (!res.ok) throw new Error(`the site answered ${res.status}`)
+    // A redirect may land somewhere the first check did not see (an internal host); apply the same rules to where it ended up.
+    if (res.url && !safeUrl(res.url)) throw new Error('that link redirects somewhere the app cannot read')
     const type = res.headers.get('content-type') ?? ''
     if (type && !/html|xml|text\/plain/i.test(type)) throw new Error('that link is not a web page')
     const reader = res.body?.getReader()

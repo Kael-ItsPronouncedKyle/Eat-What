@@ -75,7 +75,8 @@ const TYPES: { type: NotificationType; title: string; when: string; who: string 
   { type: 'list_sent', title: 'List sent by another member', when: 'Immediately', who: 'Everyone except the sender' },
 ]
 
-/** Per-user toggles plus the household's quiet hours. Delivery (Web Push) lands in Phase 3; the preferences are stored now. */
+/** Per-user toggles plus the household's quiet hours. Delivery is Web Push from the notify edge function, which reads these
+    preferences (a missing row counts as on) and the household's quiet hours. */
 export function Notifications() {
   const { household, userId } = useSession()
   const repo = useRepo()
