@@ -1,0 +1,27 @@
+.budget-bar { height: 14px; border-radius: 7px; background: var(--card-2); overflow: hidden; border: 1px solid var(--border); }
+.budget-fill { height: 100%; background: var(--ok); transition: width 200ms ease; }
+.budget-fill.is-warn { background: var(--low); }
+.budget-fill.is-over { background: var(--out); }
+.budget-fill.is-committed { background: var(--accent); opacity: 0.6; }
+.budget-stack { display: flex; height: 100%; }
+.budget-numbers { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-2); margin-top: var(--space-3); }
+.budget-numbers .label { color: var(--muted); font-size: var(--fs-sm); }
+.budget-numbers .value { font-family: var(--font-display); font-size: var(--fs-xl); font-weight: 700; }
+:root[data-text-size='A++'] .budget-numbers { grid-template-columns: 1fr; }
+.dest-group { margin-top: var(--space-5); }
+.dest-header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-2); }
+.line-row { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--border); min-height: 56px; }
+.line-row:last-child { border-bottom: 0; }
+.line-check { flex: 0 0 auto; }
+.line-name { font-weight: 500; }
+.line-reasons { color: var(--muted); font-size: var(--fs-sm); }
+.price-chip { font-variant-numeric: tabular-nums; min-width: 6ch; text-align: right; }
+.send-footer { position: sticky; bottom: calc(var(--tabbar-h) + var(--safe-bottom) + 8px); background: linear-gradient(to top, var(--bg) 70%, transparent); padding: var(--space-2) 0; }
+.month-bars { display: flex; align-items: flex-end; gap: 4px; height: 120px; }
+.month-bar { flex: 1 1 0; background: var(--accent); border-radius: 4px 4px 0 0; min-height: 2px; position: relative; }
+.month-bar.is-current { background: var(--amber); }
+.month-labels { display: flex; gap: 4px; }
+.month-labels span { flex: 1 1 0; text-align: center; font-size: 10px; color: var(--muted); }
+.cat-row { display: flex; align-items: center; gap: var(--space-3); }
+.cat-bar { flex: 1 1 auto; height: 10px; background: var(--card-2); border-radius: 5px; overflow: hidden; }
+.cat-fill { height: 100%; background: var(--accent); }

@@ -1,0 +1,21 @@
+# Hourly push notifications: calls the notify function with the service role key so it runs every household.
+# Enable by adding SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY as repository secrets and deploying the notify function
+# with VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY and VAPID_SUBJECT in its secrets. Harmless when the secrets are absent.
+# The function is idempotent per hour (one row per dedupe key), so a doubled or late run sends nothing twice.
+name: notify
+on:
+  schedule:
+    - cron: '7 * * * *'
+  workflow_dispatch:
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call the notify function for every household
+        if: ${{ secrets.SUPABASE_URL != '' }}
+        run: |
+          curl -fsS -X POST "$SUPABASE_URL/functions/v1/notify" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" -H "Content-Type: application/json" -d '{}'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

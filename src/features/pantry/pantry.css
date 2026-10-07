@@ -1,0 +1,58 @@
+.pantry-toolbar { display: flex; flex-direction: column; gap: var(--space-3); margin-bottom: var(--space-4); }
+.location-chips { display: flex; gap: var(--space-2); overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.location-chips::-webkit-scrollbar { display: none; }
+.search-row { position: relative; }
+.search-row .input { padding-left: 44px; }
+.search-row .search-icon { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+
+.staples-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-2); }
+:root[data-text-size='A+'] .staples-grid, :root[data-text-size='A++'] .staples-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 380px) { .staples-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.staple {
+  display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between; gap: 6px; min-height: var(--tap-lg);
+  padding: 10px 12px; border-radius: var(--radius); border: 1.5px solid var(--border); background: var(--card); text-align: left; cursor: pointer;
+  touch-action: manipulation; -webkit-tap-highlight-color: transparent; width: 100%; color: var(--fg);
+}
+.staple:active { transform: scale(0.98); }
+.staple-name { font-weight: 600; line-height: 1.2; word-break: break-word; }
+.staple.is-low { border-color: var(--low); background: var(--low-soft); }
+.staple.is-out { border-color: var(--out); background: var(--out-soft); }
+.staple.is-ok { border-color: var(--ok); }
+
+.item-card { display: flex; align-items: center; gap: var(--space-3); }
+.item-card .card-title { font-size: var(--fs-base); }
+.item-meta { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+.item-actions { display: flex; align-items: center; gap: var(--space-2); flex: 0 0 auto; }
+.item-list { display: flex; flex-direction: column; gap: var(--space-2); }
+
+.expiry-banner { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-4); border-radius: var(--radius); background: var(--low-soft); color: var(--fg); border: 1px solid var(--low); }
+.expiry-banner.is-expired { background: var(--out-soft); border-color: var(--out); }
+
+.freezer-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+:root[data-text-size='A++'] .freezer-grid { grid-template-columns: 1fr; }
+.tape-label {
+  font-family: var(--font-display); font-weight: 600; letter-spacing: 0.02em; line-height: 1.25;
+  background: #f3e2a4; color: #2b2410; padding: 8px 12px; border-radius: 3px; transform: rotate(-1.2deg);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.15); display: inline-block; max-width: 100%; word-break: break-word;
+}
+:root[data-contrast='high'] .tape-label { background: #fff; color: #000; border: 2px solid #000; transform: none; }
+.block-card { display: flex; flex-direction: column; gap: var(--space-3); }
+.block-count { font-family: var(--font-display); font-size: var(--fs-2xl); font-weight: 700; line-height: 1; }
+.block-spot { color: var(--muted); font-size: var(--fs-sm); }
+.spot-group { margin-top: var(--space-5); }
+.spot-group h3 { display: flex; align-items: center; gap: 8px; margin-bottom: var(--space-3); }
+
+.detail-stat { display: flex; flex-direction: column; gap: 2px; }
+.detail-stat .label { color: var(--muted); font-size: var(--fs-sm); }
+.history { display: flex; flex-direction: column; gap: var(--space-2); }
+.history-row { display: flex; gap: var(--space-3); align-items: baseline; }
+.history-when { color: var(--muted); font-size: var(--fs-sm); flex: 0 0 auto; min-width: 7ch; }
+.sticky-actions { position: sticky; bottom: calc(var(--tabbar-h) + var(--safe-bottom) + 8px); display: flex; gap: var(--space-2); padding: var(--space-2) 0; background: linear-gradient(to top, var(--bg) 70%, transparent); }
+.sticky-actions .btn { flex: 1 1 0; }
+
+/* Scan screen: receipt review rows */
+.scan-lines { list-style: none; margin: var(--space-3) 0; padding: 0; display: flex; flex-direction: column; }
+.scan-line { display: flex; align-items: flex-start; gap: var(--space-3); padding: var(--space-3) 0; border-bottom: 1px solid var(--border); min-height: 56px; }
+.scan-line:last-child { border-bottom: 0; }
+.scan-line-text { font-weight: 500; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; overflow-wrap: anywhere; }
+.scan-line.is-skipped .scan-line-text { color: var(--muted); text-decoration: line-through; }

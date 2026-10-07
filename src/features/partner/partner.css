@@ -1,0 +1,32 @@
+/* Partner sheet: one big text box, a mic, one Apply. Everything stays inside 360 px at A++ with no fixed widths. */
+.partner-form { display: flex; flex-direction: column; gap: var(--space-3); }
+.partner-input .input { font-size: var(--fs-lg); min-height: calc(var(--tap) * 2); }
+
+.partner-controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+.partner-controls .partner-read { flex: 1 1 100%; justify-content: flex-start; }
+.partner-mic {
+  flex: 0 0 auto; width: var(--tap-lg); height: var(--tap-lg); min-width: var(--tap-lg); padding: 0; border: 0; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center; background: var(--amber); color: #1a1200; cursor: pointer;
+  touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+}
+.partner-mic:active { transform: scale(0.97); }
+.partner-mic.is-listening { background: var(--out); color: #fff; animation: partner-pulse 1s ease-in-out infinite; }
+@keyframes partner-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgb(226 87 74 / 0.5); } 50% { box-shadow: 0 0 0 12px rgb(226 87 74 / 0); } }
+
+.partner-transcript { min-height: 1.5em; color: var(--muted); font-size: var(--fs-sm); }
+
+.partner-examples { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-3); }
+.partner-examples .chip { white-space: normal; text-align: left; height: auto; padding-top: 8px; padding-bottom: 8px; }
+
+.partner-guard { margin-top: var(--space-4); }
+
+.partner-answer { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-4); }
+.partner-answer-row { min-height: var(--tap); display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
+.partner-answer-row:last-of-type { border-bottom: 0; }
+
+.partner-changes { display: flex; flex-direction: column; margin-top: var(--space-4); }
+.partner-change { display: flex; align-items: flex-start; gap: var(--space-3); padding: var(--space-3) 0; border-bottom: 1px solid var(--border); min-height: 56px; }
+.partner-change:last-child { border-bottom: 0; }
+.partner-change-text { font-weight: 500; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; overflow-wrap: anywhere; }
+.partner-change.is-skipped .partner-change-text { color: var(--muted); text-decoration: line-through; }
+.partner-change .field { margin-top: var(--space-2); }

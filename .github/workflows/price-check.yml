@@ -1,0 +1,20 @@
+# Weekly web price check for every household that turned it on under House > Price check.
+# Enable by adding SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY as repository secrets and deploying the price-check function
+# with ANTHROPIC_API_KEY in its secrets. Harmless when the secrets are absent.
+name: price-check
+on:
+  schedule:
+    - cron: '17 11 * * 1'
+  workflow_dispatch:
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call the price-check function for every opted-in household
+        if: ${{ secrets.SUPABASE_URL != '' }}
+        run: |
+          curl -fsS -X POST "$SUPABASE_URL/functions/v1/price-check" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" -H "Content-Type: application/json" -d '{}'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

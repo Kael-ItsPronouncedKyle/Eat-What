@@ -1,0 +1,58 @@
+/* Print layouts (/print/labels, /print/week). The screen shows a paper preview; print hides everything but the paper. */
+@page { size: letter; margin: 0.5in; }
+
+.print-screen { min-height: 100%; background: var(--bg); color: var(--fg); padding: var(--space-4) var(--gutter) calc(var(--space-6) + var(--safe-bottom)); }
+.print-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); max-width: 760px; margin: 0 auto var(--space-4); }
+.print-toolbar .btn-lg { flex: 1 1 200px; }
+.print-back { display: inline-flex; align-items: center; gap: var(--space-2); min-height: var(--tap); padding: 0 var(--space-3); color: var(--accent); text-decoration: none; font-weight: 600; border-radius: var(--radius-lg); }
+.print-back:hover { text-decoration: underline; }
+.print-options { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); max-width: 760px; margin: 0 auto var(--space-4); }
+.print-options label { display: inline-flex; align-items: center; gap: var(--space-2); min-height: var(--tap); cursor: pointer; }
+.print-options input[type='checkbox'] { width: 24px; height: 24px; accent-color: var(--accent); }
+
+/* The paper: white on screen whatever the theme, black ink, plain system fonts so it prints the same everywhere. */
+.paper { background: #fff; color: #111; max-width: 760px; margin: 0 auto; padding: var(--space-5) var(--space-4); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06); font-family: var(--font-ui); overflow-wrap: anywhere; }
+.paper h1 { font-size: 1.6rem; margin-bottom: 4px; }
+.paper h2 { font-size: 1.15rem; margin: var(--space-5) 0 var(--space-2); border-bottom: 2px solid #111; padding-bottom: 4px; }
+.paper h3 { font-size: 1rem; margin: var(--space-3) 0 var(--space-1); }
+.paper .paper-sub { color: #444; margin-bottom: var(--space-2); }
+.paper table { width: 100%; border-collapse: collapse; font-size: 0.95em; }
+.paper th, .paper td { text-align: left; vertical-align: top; padding: 6px 6px 6px 0; border-bottom: 1px solid #ccc; }
+.paper th { font-weight: 700; border-bottom: 2px solid #111; }
+.paper td.num, .paper th.num { text-align: right; padding-right: 0; white-space: nowrap; }
+.paper ul { list-style: none; }
+.paper .day { break-inside: avoid; margin-bottom: var(--space-2); }
+.paper .day li { display: flex; gap: 8px; padding: 3px 0; }
+.paper .day li .kind { flex: 0 0 auto; min-width: 3.5em; font-weight: 700; text-transform: lowercase; color: #444; }
+.paper .shop-list li { display: flex; gap: 8px; padding: 4px 0; border-bottom: 1px dotted #ccc; }
+.paper .shop-list .box { flex: 0 0 auto; width: 1.1em; height: 1.1em; border: 1.5px solid #111; margin-top: 2px; }
+.paper .paper-note { color: #444; font-size: 0.9em; margin-top: var(--space-3); }
+
+/* Freezer labels: a grid of 2 x 4 inch boxes, two across a letter page. On screen they fill the width and grow with text. */
+.label-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 12px; }
+.label-box { border: 1.5px dashed #555; border-radius: 6px; padding: 10px 12px; min-height: 2in; display: flex; flex-direction: column; justify-content: space-between; gap: 4px; break-inside: avoid; page-break-inside: avoid; }
+.label-box .label-title { font-size: 1.2em; font-weight: 700; line-height: 1.15; }
+.label-box .label-line { line-height: 1.25; }
+.label-box .label-reheat { font-size: 0.85em; color: #333; }
+.label-box .label-house { font-size: 0.8em; color: #555; text-transform: uppercase; letter-spacing: 0.04em; }
+
+/* On a narrow screen the batch table stacks each row as a card so nothing scrolls sideways at A++. */
+@media screen and (max-width: 560px) {
+  .paper table, .paper tbody, .paper tr, .paper td { display: block; width: 100%; }
+  .paper thead { display: none; }
+  .paper tr { border-bottom: 2px solid #111; padding: 6px 0; }
+  .paper td { border-bottom: 0; padding: 2px 0; }
+  .paper td.num { text-align: left; white-space: normal; }
+  .paper td:empty { display: none; }
+  .paper td[data-label]::before { content: attr(data-label) ': '; font-weight: 700; color: #444; }
+}
+
+@media print {
+  html, body { background: #fff !important; color: #000 !important; }
+  .print-screen { padding: 0; background: #fff; }
+  .print-toolbar, .print-options, .no-print, nav, header.topbar, .tabbar, .partner-fab, .undo-bar { display: none !important; }
+  .paper { max-width: none; margin: 0; padding: 0; border: 0; border-radius: 0; box-shadow: none; font-size: 11pt; }
+  .label-grid { grid-template-columns: repeat(2, 1fr); gap: 0.125in; }
+  .label-box { height: 2in; min-height: 2in; overflow: hidden; border-style: solid; border-color: #999; }
+  .paper a { color: inherit; text-decoration: none; }
+}

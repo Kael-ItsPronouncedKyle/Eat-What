@@ -1,0 +1,41 @@
+# Runs on pull requests and on pushes to main: typecheck, lint, unit tests, production build, the SQL tenancy tests
+# against a throwaway Postgres, and the Playwright flows on a Pixel 7 profile.
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      - name: SQL tenancy tests
+        run: |
+          sudo apt-get install -y -qq postgresql >/dev/null
+          sudo service postgresql stop || true
+          npm run db:test
+      - name: Playwright flows
+        run: |
+          # The hosted runner already carries Chromium's system libraries; skipping --with-deps avoids an apt round trip that can stall.
+          npx playwright install chromium
+          npm run test:e2e
+      - uses: actions/upload-artifact@v5
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report
+          retention-days: 7

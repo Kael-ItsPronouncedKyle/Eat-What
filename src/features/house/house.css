@@ -1,0 +1,12 @@
+.house-menu { display: flex; flex-direction: column; gap: var(--space-2); }
+.house-menu .list-row { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); }
+.role-pill { text-transform: capitalize; }
+.rule-card { display: flex; align-items: center; gap: var(--space-3); }
+.rule-text { font-weight: 500; }
+.rule-form { display: flex; flex-direction: column; gap: var(--space-3); }
+.invite-box { font-family: ui-monospace, monospace; word-break: break-all; background: var(--card-2); padding: var(--space-3); border-radius: var(--radius-sm); }
+.activity-row { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) 0; border-bottom: 1px solid var(--border); }
+.activity-row:last-child { border-bottom: 0; }
+.activity-when { color: var(--muted); font-size: var(--fs-sm); flex: 0 0 7ch; }
+.activity-undone { text-decoration: line-through; color: var(--muted); }
+.pref-grid { display: flex; flex-direction: column; gap: var(--space-4); }
