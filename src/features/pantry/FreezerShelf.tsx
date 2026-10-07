@@ -53,7 +53,7 @@ export function FreezerShelf() {
       <p className="muted" style={{ marginBottom: 'var(--space-4)' }}>
         {total === 0 ? 'Nothing frozen right now.' : `${total} ${total === 1 ? 'block' : 'blocks'} ready. Oldest first, so nothing hides in the back.`}
       </p>
-      {blocks.length ? (
+      {blocks.some((b) => b.countRemaining > 0) ? (
         <div className="row-wrap" style={{ marginBottom: 'var(--space-3)' }}>
           <Link to={`/print/labels?blocks=${blocks.filter((b) => b.countRemaining > 0).map((b) => b.id).join(',')}`} className="btn btn-secondary">
             <Icon name="print" /> <span className="btn-label">Print labels</span>

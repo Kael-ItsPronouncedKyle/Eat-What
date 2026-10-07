@@ -8,7 +8,7 @@ import { generateRecipe, hasAiBackend, importRecipeFromUrl, NO_BACKEND, type All
 import { saveRecipe, type RecipeDraftIngredient } from './mutations'
 
 /** Map the function's recipe shape onto the editor's draft so saveRecipe (and undo) does the rest. */
-export function toRecipeDraft(r: ImportedRecipe, source: 'url' | 'ai', status: Recipe['status']): { draft: Omit<Recipe, keyof TenantRow | 'effortScore'>; ingredients: RecipeDraftIngredient[] } {
+function toRecipeDraft(r: ImportedRecipe, source: 'url' | 'ai', status: Recipe['status']): { draft: Omit<Recipe, keyof TenantRow | 'effortScore'>; ingredients: RecipeDraftIngredient[] } {
   return {
     draft: {
       libraryId: null,
@@ -45,7 +45,7 @@ export function toRecipeDraft(r: ImportedRecipe, source: 'url' | 'ai', status: R
 
 function RecipePreview({ recipe, hits }: { recipe: ImportedRecipe; hits?: AllergyHit[] }) {
   const flagged = new Set((hits ?? []).map((h) => h.ingredient.toLowerCase()))
-  const times = [recipe.activeMinutes ? `${recipe.activeMinutes} min active` : null, recipe.totalMinutes ? `${recipe.totalMinutes} min total` : null].filter(Boolean)
+  const times = [recipe.activeMinutes ? `${recipe.activeMinutes} min active` : null, recipe.totalMinutes ? `${recipe.totalMinutes} min total` : null].filter((t): t is string => !!t)
   return (
     <Card>
       <div className="row-title">{recipe.title}</div>
@@ -150,7 +150,7 @@ export function ImportUrlSheet({ open, onClose }: { open: boolean; onClose: () =
         {note ? <p className="small muted">{note}</p> : null}
         {result ? (
           <div className="stack">
-            <p className="small muted">{result.via === 'jsonld' ? 'Read from the page\'s own recipe data.' : 'Read from the page text.'}</p>
+            <p className="small muted">{result.via === 'jsonld' ? "Read from the page's own recipe data." : 'Read from the page text.'}</p>
             <RecipePreview recipe={result.recipe} />
           </div>
         ) : null}

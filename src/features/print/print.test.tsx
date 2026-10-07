@@ -89,6 +89,23 @@ describe('print screens', () => {
     expect(screen.getByRole('link', { name: /Back to the cook week/ })).toHaveAttribute('href', `/cook/week/${week.id}`)
   })
 
+  it('week page shop row drops the on-screen link text cleanly', async () => {
+    const repo = await seededRepo()
+    const { week } = await seedWeek(repo)
+    await renderWithApp(<PrintWeek />, { repo, route: `/print/week/${week.id}`, path: '/print/week/:id' })
+    await screen.findByRole('heading', { name: 'Day by day' })
+    const shop = screen.getByText(/Shop for the week/)
+    expect(shop).toHaveTextContent('Shop for the week. One send covers every batch.')
+    expect(shop.textContent).not.toMatch(/\s\./)
+    expect(shop.textContent).not.toMatch(/Open the list/)
+  })
+
+  it('labels page says plainly when the cook week is gone', async () => {
+    await renderWithApp(<PrintLabels />, { route: '/print/labels?week=nope', path: '/print/labels' })
+    expect(await screen.findByText(/not here any more/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Back to cook weeks' })).toHaveAttribute('href', '/cook/week')
+  })
+
   it('week page says plainly when the week is gone', async () => {
     await renderWithApp(<PrintWeek />, { route: '/print/week/nope', path: '/print/week/:id' })
     expect(await screen.findByText(/not here any more/)).toBeInTheDocument()

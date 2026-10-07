@@ -76,21 +76,21 @@ export function PrintWeek() {
               const cook = data.persons.find((p) => p.id === b.cookPersonId)?.name ?? 'Anyone'
               return (
                 <tr key={b.id} data-testid="batch-row">
-                  <td>
+                  <td data-label="Recipe">
                     <strong>{r?.title ?? 'Recipe'}</strong>
                     {b.kind === 'dump_kit' ? <div className="small">raw dump kit</div> : null}
                     <div className="small">{b.scheduledOn ? formatDate(b.scheduledOn, 'weekday') : 'no day yet'}</div>
                   </td>
-                  <td className="num">×{b.multiplier}</td>
-                  <td>
+                  <td className="num" data-label="Times">×{b.multiplier}</td>
+                  <td data-label="Containers">
                     {b.containerPlan.filter((l) => l.count > 0).map((l) => (
                       <div key={l.containerId}>
                         {l.count} × {l.portionLabel} ({data.containers.find((c) => c.id === l.containerId)?.name ?? 'container'})
                       </div>
                     ))}
                   </td>
-                  <td>{cook}</td>
-                  <td className="num">{b.estimatedCostCents !== null ? formatCents(b.estimatedCostCents) : ''}</td>
+                  <td data-label="Cook">{cook}</td>
+                  <td className="num" data-label="Est. cost">{b.estimatedCostCents !== null ? formatCents(b.estimatedCostCents) : ''}</td>
                 </tr>
               )
             })}
@@ -110,7 +110,7 @@ export function PrintWeek() {
                 <li key={i}>
                   <span className="kind">{KIND_LABEL[e.kind] ?? e.kind}</span>
                   <span>
-                    {e.kind === 'shop' ? e.text.replace(`${SHOP_LINK_TEXT}:`, '').replace(SHOP_LINK_TEXT, '').replace(/\s{2,}/g, ' ').trim() : e.text}
+                    {e.kind === 'shop' ? e.text.replace(`${SHOP_LINK_TEXT}.`, '').trim() : e.text}
                     {e.kind === 'batch' && e.minutes ? ` (${e.minutes} min)` : ''}
                   </span>
                 </li>

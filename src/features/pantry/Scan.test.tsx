@@ -3,7 +3,7 @@ import { cleanup, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { renderWithApp } from '@/test/render'
 import { PantryPage } from './PantryPage'
-import { parseTypedLines, prefillName } from './Scan'
+import { parseTypedLines, prefillName } from './scanParse'
 
 const PATH = '/pantry/*'
 

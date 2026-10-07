@@ -91,8 +91,12 @@ export function PrintLabels() {
       }
     >
       <h1>Freezer labels</h1>
-      <p className="paper-sub">{week ? week.name : `${cards.length} ${cards.length === 1 ? 'block' : 'blocks'} from the freezer shelf`}</p>
-      {boxes.length === 0 ? (
+      <p className="paper-sub">{week ? week.name : weekId ? '' : `${cards.length} ${cards.length === 1 ? 'block' : 'blocks'} from the freezer shelf`}</p>
+      {weekId && !week ? (
+        <p className="paper-note">
+          This cook week is not here any more. <Link to="/cook/week">Back to cook weeks</Link>
+        </p>
+      ) : boxes.length === 0 ? (
         <p className="paper-note">
           Nothing to print yet. {week ? 'Add a batch to the cook week first.' : 'Pick blocks on the freezer shelf first.'} <Link to={backTo}>{backLabel}</Link>
         </p>

@@ -120,6 +120,10 @@ export function PartnerSheet({ open, onClose, onListeningChange }: PartnerSheetP
   const [fixing, setFixing] = useState<Record<string, boolean>>({})
   const [spokenFallback, setSpokenFallback] = useState<string | null>(null)
   const [applying, setApplying] = useState(false)
+  // Which parser answered: the server one when a backend exists and it understood, else the rules on this phone.
+  const [answeredBy, setAnsweredBy] = useState<'server' | 'local' | null>(null)
+  const [serverNote, setServerNote] = useState<string | null>(null)
+  const [thinking, setThinking] = useState(false)
   const recognition = useRef<RecognitionLike | null>(null)
   const canListen = useMemo(() => recognitionCtor() !== null, [])
 
@@ -166,10 +170,6 @@ export function PartnerSheet({ open, onClose, onListeningChange }: PartnerSheetP
     [],
   )
 
-  // Which parser answered: the server one when a backend exists and it understood, else the rules on this phone.
-  const [answeredBy, setAnsweredBy] = useState<'server' | 'local' | null>(null)
-  const [serverNote, setServerNote] = useState<string | null>(null)
-  const [thinking, setThinking] = useState(false)
   const understand = useCallback(
     async (raw: string, from: 'typed' | 'voice') => {
       const said = raw.trim()

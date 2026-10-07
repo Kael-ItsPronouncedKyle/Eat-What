@@ -1,7 +1,7 @@
 /* Turns intents from the server parser (supabase/functions/parse-intent) into the same ParseResult the local parser
    returns, so the confirm sheet needs no change. Pure: matching uses the same domain rules as the local parser.
-   Returns null for intents the sheet answers better locally (questions, suggestions, unknowns) or cannot apply yet
-   (plan, routing, rules); the caller then falls back to the local parser. */
+   Returns 'fallback' for intents the sheet answers better locally (questions, suggestions, unknowns) or cannot apply yet
+   (plan, routing, rules); the caller then runs the local parser. */
 import type { Intent, ItemCategory } from '@/domain/types'
 import { findItemByName } from '@/domain/matching'
 import { CONFIDENCE, describeChange, guessCategory, type Change, type ParseContext, type ParseResult } from './intents'
@@ -59,7 +59,8 @@ function changesFor(intent: Intent, ctx: ParseContext, offset: number): Change[]
     case 'list.add':
       for (const it of intent.items) {
         const m = match(it.name)
-        const retailer = it.retailer ? (ctx.retailers.find((r) => !r.deletedAt && (r.name.toLowerCase() === it.retailer!.toLowerCase() || r.kind === it.retailer!.toLowerCase())) ?? null) : null
+        const want = it.retailer?.toLowerCase()
+        const retailer = want ? (ctx.retailers.find((r) => !r.deletedAt && (r.name.toLowerCase() === want || r.kind === want)) ?? null) : null
         out.push({ key: `r${offset + out.length}`, kind: 'list_add', name: it.name, ...m, qty: it.qty, unit: it.unit, retailerId: retailer?.id ?? null, retailerName: retailer?.name, category: category(it.name, undefined, it.unit, m.itemId) })
       }
       break

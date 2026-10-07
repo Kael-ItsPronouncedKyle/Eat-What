@@ -36,6 +36,17 @@
 .label-box .label-reheat { font-size: 0.85em; color: #333; }
 .label-box .label-house { font-size: 0.8em; color: #555; text-transform: uppercase; letter-spacing: 0.04em; }
 
+/* On a narrow screen the batch table stacks each row as a card so nothing scrolls sideways at A++. */
+@media screen and (max-width: 560px) {
+  .paper table, .paper tbody, .paper tr, .paper td { display: block; width: 100%; }
+  .paper thead { display: none; }
+  .paper tr { border-bottom: 2px solid #111; padding: 6px 0; }
+  .paper td { border-bottom: 0; padding: 2px 0; }
+  .paper td.num { text-align: left; white-space: normal; }
+  .paper td:empty { display: none; }
+  .paper td[data-label]::before { content: attr(data-label) ': '; font-weight: 700; color: #444; }
+}
+
 @media print {
   html, body { background: #fff !important; color: #000 !important; }
   .print-screen { padding: 0; background: #fff; }
