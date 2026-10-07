@@ -49,3 +49,10 @@
 .history-when { color: var(--muted); font-size: var(--fs-sm); flex: 0 0 auto; min-width: 7ch; }
 .sticky-actions { position: sticky; bottom: calc(var(--tabbar-h) + var(--safe-bottom) + 8px); display: flex; gap: var(--space-2); padding: var(--space-2) 0; background: linear-gradient(to top, var(--bg) 70%, transparent); }
 .sticky-actions .btn { flex: 1 1 0; }
+
+/* Scan screen: receipt review rows */
+.scan-lines { list-style: none; margin: var(--space-3) 0; padding: 0; display: flex; flex-direction: column; }
+.scan-line { display: flex; align-items: flex-start; gap: var(--space-3); padding: var(--space-3) 0; border-bottom: 1px solid var(--border); min-height: 56px; }
+.scan-line:last-child { border-bottom: 0; }
+.scan-line-text { font-weight: 500; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; overflow-wrap: anywhere; }
+.scan-line.is-skipped .scan-line-text { color: var(--muted); text-decoration: line-through; }

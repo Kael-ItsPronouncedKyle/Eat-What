@@ -4,7 +4,7 @@ import { ItemDetail } from './ItemDetail'
 import { AddItem } from './AddItem'
 import { FreezerShelf } from './FreezerShelf'
 import { FreezerBlockDetail } from './FreezerBlockDetail'
-import { ScanPlaceholder } from './ScanPlaceholder'
+import { Scan } from './Scan'
 import './pantry.css'
 
 export function PantryPage() {
@@ -13,7 +13,7 @@ export function PantryPage() {
       <Route index element={<PantryList />} />
       <Route path="item/:id" element={<ItemDetail />} />
       <Route path="add" element={<AddItem />} />
-      <Route path="scan" element={<ScanPlaceholder />} />
+      <Route path="scan" element={<Scan />} />
       <Route path="freezer" element={<FreezerShelf />} />
       <Route path="freezer/:id" element={<FreezerBlockDetail />} />
     </Routes>
