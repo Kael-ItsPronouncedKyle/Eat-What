@@ -5,7 +5,7 @@ Read this before building any screen. It is the contract between features and th
 ## Where things are
 
 - `src/domain/*`: pure rules (see `src/domain/CONTRACTS.md`). Never reimplement a rule in a component; call the domain.
-- `src/data/repository.ts`: the `Repository` interface. Features never import Dexie or Supabase.
+- `src/data/repository.ts`: the `Repository` interface. Features never import Dexie or Supabase. In Supabase mode the app uses `SyncedRepository` (IndexedDB mirror plus outbox); writes must be patches or full rows through the `Collection` methods so the queue can replay them.
 - `src/data/provider.tsx`: `useRepo()`, `useCollection(table, householdId)`, `useCollections([...], householdId)` (live lists that refresh on change).
 - `src/app/hooks/useHouseholdData.ts`: `useHouseholdData()` loads every table the engine needs plus `recipesWithIngredients` and `alwaysHave`.
 - `src/app/hooks/useActions.ts`: `useUndoable().run(async (repo, actor) => mutation)` performs a write and shows the 5-second undo bar.

@@ -11,7 +11,7 @@ npm install
 npm run dev        # http://localhost:5173, local mode (no account), seeded with Denton and College Station
 ```
 
-With no Supabase keys the app runs entirely in the browser (IndexedDB). Reset the demo under House, Export and reset.
+With no Supabase keys the app runs entirely in the browser (IndexedDB). Reset the demo under House, Export and reset. With keys, reads come from an IndexedDB mirror and writes queue in an outbox when offline; the header shows "N changes waiting" until they flush.
 
 ## Connect Supabase
 
@@ -50,4 +50,4 @@ e2e                Playwright flows
 
 ## Phase status
 
-Phase 1 (Foundation) is built in local mode: pantry (status and count), freezer shelf with labels, recipe bank, four suggestion modes with explainable scores, week plan with fill and plan-to-list, cook-week builder with container math, cook mode, one shopping list with per-retailer send, price book, budget, rules engine, A/A+/A++, undo everywhere, activity feed, Neelix import, multi-household data model with RLS. Phase 2 and 3 pieces that are schema-only or stubbed: invites (RPCs ready), push notifications (preferences stored), barcode and receipt scanning, the Claude intent parser (a local rule-based parser ships now), Instacart Developer Platform cart links (search links ship now).
+Phase 1 (Foundation) is built in local mode: pantry (status and count), freezer shelf with labels, recipe bank, four suggestion modes with explainable scores, week plan with fill and plan-to-list, cook-week builder with container math, cook mode, one shopping list with per-retailer send, price book, budget, rules engine, A/A+/A++, undo everywhere, activity feed, Neelix import, multi-household data model with RLS. Also built ahead of the roadmap: a local rule-based partner (type or dictate "we're out of eggs and low on butter", confirm, undo), email one-time-code sign-in with invite links and first-run setup, an offline mirror with a write queue for Supabase mode, and the `instacart-link` edge function (needs an Instacart Developer Platform key). Still schema-only or stubbed: push notifications (preferences stored), barcode and receipt scanning, the Claude intent parser, URL recipe import, AI recipe generation.
