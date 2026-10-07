@@ -23,6 +23,18 @@ With no Supabase keys the app runs entirely in the browser (IndexedDB). Reset th
 
 Every table has row level security; a user sees only households they belong to. Roles: owner, editor, viewer, agent (for Riker).
 
+## What it looks like
+
+Phone-size captures of the seeded Denton household, from `scripts/screenshot.mjs` against `npm run preview`:
+
+| Home | Pantry | Freezer shelf | Cook |
+| --- | --- | --- | --- |
+| ![Home](docs/screenshots/home.png) | ![Pantry](docs/screenshots/pantry.png) | ![Freezer shelf](docs/screenshots/freezer.png) | ![Cook](docs/screenshots/cook.png) |
+
+| Shop | Price book | House | Pantry at A++ |
+| --- | --- | --- | --- |
+| ![Shop](docs/screenshots/shop.png) | ![Price book](docs/screenshots/prices.png) | ![House](docs/screenshots/house.png) | ![Pantry at A++](docs/screenshots/pantry-a-plus-plus.png) |
+
 ## Checks
 
 ```bash

@@ -81,7 +81,7 @@ describe('ShopPage', () => {
     await renderWithApp(<ShopPage />, { repo, route: '/shop/prices', path: PATH })
     expect(await screen.findByRole('heading', { name: 'Price book' })).toBeInTheDocument()
     expect(await screen.findByText(/College Station · ZIP 77840/)).toBeInTheDocument()
-    expect(await screen.findByText(/starter estimates or 7\+ days old/)).toBeInTheDocument()
+    expect(await screen.findByText(/prices are starter estimates/)).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'H-E-B' }))
     const row = await screen.findByRole('button', { name: /^Ground beef/ })

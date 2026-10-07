@@ -46,8 +46,14 @@ export function PriceBook() {
       .sort((a, b) => Number(!!b.quote) - Number(!!a.quote) || a.item.name.localeCompare(b.item.name))
   }, [data.items, data.prices, retailerId, query, today])
 
-  const stale = rows.filter((r) => r.quote && (r.quote.stale || r.quote.starter)).length
+  const starterCount = rows.filter((r) => r.quote?.starter).length
+  const staleCount = rows.filter((r) => r.quote && r.quote.stale && !r.quote.starter).length
+  const stale = starterCount + staleCount
   const oldest = data.prices.reduce<string | null>((acc, p) => (acc === null || p.observedOn < acc ? p.observedOn : acc), null)
+  const banner = [
+    starterCount > 0 ? `${starterCount} ${starterCount === 1 ? 'price is a starter estimate' : 'prices are starter estimates'}` : '',
+    staleCount > 0 ? `${staleCount} ${staleCount === 1 ? 'is' : 'are'} 7+ days old${oldest ? ` (oldest ${daysBetween(oldest, today)} days)` : ''}` : '',
+  ].filter(Boolean).join('; ')
 
   return (
     <div className="page">
@@ -58,7 +64,7 @@ export function PriceBook() {
       {stale > 0 ? (
         <div className="expiry-banner" role="status" style={{ marginBottom: 'var(--space-3)' }}>
           <Icon name="clock" />
-          <div className="grow">{stale} {stale === 1 ? 'price is' : 'prices are'} starter estimates or 7+ days old{oldest ? `; oldest ${daysBetween(oldest, today)} days` : ''}. A receipt scan refreshes them.</div>
+          <div className="grow">{banner}. A receipt scan or a typed price replaces them.</div>
         </div>
       ) : null}
       <div className="row-wrap" style={{ marginBottom: 'var(--space-3)' }} role="group" aria-label="Retailer">
