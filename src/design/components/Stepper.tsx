@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { IconButton } from './Button'
 
 export interface StepperProps {
@@ -14,6 +15,16 @@ export interface StepperProps {
 export function Stepper({ label, value, unit, step = 1, min = 0, onChange, size = 'md' }: StepperProps) {
   const dec = () => onChange(Math.max(min, round(value - step)))
   const inc = () => onChange(round(value + step))
+  const display = Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/\.?0+$/, '')
+  const [text, setText] = useState(display)
+  useEffect(() => setText(display), [display])
+  const commit = () => {
+    const n = Number(text)
+    if (text.trim() === '' || Number.isNaN(n)) return setText(display)
+    const next = Math.max(min, round(n))
+    if (next !== value) onChange(next)
+    else setText(display)
+  }
   return (
     <div className={`stepper stepper-${size}`} role="group" aria-label={label}>
       <IconButton icon="minus" label={`Decrease ${label}`} variant="secondary" size={size} onClick={dec} disabled={value <= min} />
@@ -24,10 +35,14 @@ export function Stepper({ label, value, unit, step = 1, min = 0, onChange, size 
           inputMode="decimal"
           step={step}
           min={min}
-          value={Number.isInteger(value) ? value : value.toFixed(2).replace(/\.?0+$/, '')}
-          onChange={(e) => {
-            const n = Number(e.target.value)
-            if (!Number.isNaN(n)) onChange(Math.max(min, n))
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              commit()
+            }
           }}
           className="stepper-input num"
           aria-label={`${label} amount`}

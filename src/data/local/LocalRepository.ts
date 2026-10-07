@@ -61,7 +61,16 @@ export class LocalRepository implements Repository {
     }
     return {
       list: async (householdId, opts) => {
-        const rows = await store.where('householdId').equals(householdId).toArray()
+        let rows: TableMap[K][]
+        if (name === 'households') {
+          const h = await this.db.households.get(householdId)
+          rows = (h ? [h] : []) as TableMap[K][]
+        } else if (name === 'profiles') {
+          const members = (await this.db.memberships.where('householdId').equals(householdId).toArray()).filter((m) => !m.deletedAt)
+          rows = (await this.db.profiles.bulkGet(members.map((m) => m.userId))).filter((p): p is TableMap['profiles'] => !!p) as TableMap[K][]
+        } else {
+          rows = await store.where('householdId').equals(householdId).toArray()
+        }
         return opts?.includeDeleted ? rows : rows.filter((r) => !(r as Partial<TenantRow>).deletedAt)
       },
       get: async (id) => (await store.get(id)) ?? null,

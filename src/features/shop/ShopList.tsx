@@ -4,7 +4,9 @@ import type { ListLine } from '@/domain/types'
 import { groupByDestination, plainTextList, restockNeeds, routeLine, subtractStock, mergeIntoList, estimateLineCents, type DestinationGroup } from '@/domain/listing'
 import { monthSummary } from '@/domain/budget'
 import { formatCents } from '@/domain/money'
-import { formatQuantity } from '@/domain/units'
+import { formatQuantity, parseQuantity } from '@/domain/units'
+import { findItemByName } from '@/domain/matching'
+import { priceFor } from '@/domain/budget'
 import { monthKey } from '@/domain/dates'
 import { newId } from '@/domain/ids'
 import { useSession } from '@/app/session'
@@ -14,6 +16,7 @@ import { useToday } from '@/app/hooks/useToday'
 import { useCollection } from '@/data/provider'
 import { addListLine, dropListLine, logEvent } from '@/data/mutations'
 import { planSend } from '@/integrations/retailers/adapters'
+import { requestInstacartLink } from '@/integrations/retailers/instacartLink'
 import { copyText, printText, shareText } from '@/integrations/share'
 import { Badge, Button, Card, EmptyState, Icon, Sheet, TextField } from '@/design/components'
 import { buildLine, sendGroup, updateLine } from './mutations'
@@ -43,12 +46,24 @@ export function ShopList() {
   const priceCtx = useMemo(() => ({ prices: data.prices, items: data.items }), [data.prices, data.items])
   const groups = useMemo(() => safe(() => groupByDestination(openLines, data.retailers, priceCtx), [{ retailer: null, lines: openLines, estimatedCents: null, unknownPrices: openLines.length }] as DestinationGroup[]), [openLines, data.retailers, priceCtx])
   const summary = useMemo(() => (row ? safe(() => monthSummary(data.spend, data.list_sends, row, monthKey(today)), null) : null), [row, data.spend, data.list_sends, today])
-  const restock = useMemo(() => safe(() => restockNeeds(data.items).filter((n) => !openLines.some((l) => l.itemId === n.itemId)), []), [data.items, openLines])
+  const restock = useMemo(() => safe(() => restockNeeds(data.items).filter((n) => !data.list_lines.some((l) => l.itemId === n.itemId && (l.status === 'open' || l.status === 'ordered'))), []), [data.items, data.list_lines])
   const totalEst = groups.reduce((n, g) => n + (g.estimatedCents ?? 0), 0)
+  const isStarter = (l: ListLine) => (l.itemId ? safe(() => priceFor(l.itemId!, l.retailerId, data.prices, today)?.starter ?? false, false) : false)
+  const anyStarter = openLines.some(isStarter)
 
   const addFromText = async () => {
     if (!household || !addText.trim()) return
-    const line = buildLine(household.id, actor, { name: addText.trim(), position: openLines.length })
+    const parsed = safe(() => parseQuantity(addText.trim()), null)
+    const name = parsed?.rest || addText.trim()
+    const match = safe(() => findItemByName(name, { items: data.items, aliases: data.item_aliases, alwaysHave: data.alwaysHave }), null)
+    const item = match?.itemId ? (data.items.find((i) => i.id === match.itemId) ?? null) : null
+    const existing = item ? openLines.find((l) => l.itemId === item.id) : null
+    if (existing) {
+      await run((r, a) => updateLine(r, existing, { qty: parsed?.amount ?? existing.qty, unit: parsed?.unit ?? existing.unit, reasons: [...existing.reasons, { kind: 'manual' }] }, a, `${existing.name} is already on the list; updated it`))
+      setAddText('')
+      return
+    }
+    const line = buildLine(household.id, actor, { item, name, qty: parsed?.amount ?? null, unit: parsed?.unit ?? item?.unit ?? null, position: openLines.length })
     line.retailerId = safe(() => routeLine(line, routeCtx), null)
     await run((r, a) => addListLine(r, line, a))
     setAddText('')
@@ -78,11 +93,22 @@ export function ShopList() {
   const send = async (g: DestinationGroup) => {
     if (!household) return
     const plan = planSend(g.retailer, g.lines, sendOpts(g))
-    if (plan.method === 'link' && plan.url) window.open(plan.url, '_blank', 'noopener')
+    let url = plan.url
+    if (g.retailer?.kind === 'instacart') {
+      const linked = await requestInstacartLink({ title: `${household.name} list`, lines: g.lines, searchTerms: sendOpts(g).searchTerms, upcs: new Map(g.lines.flatMap((l) => { const it = data.items.find((i) => i.id === l.itemId); return it?.barcode ? [[l.id, it.barcode] as const] : [] })) })
+      if (linked) url = linked.url
+    }
+    if (plan.method === 'link' && url) {
+      window.open(url, '_blank', 'noopener')
+      await copyText(plan.text)
+    }
     if (plan.method === 'copy') await copyText(plan.text)
-    if (plan.method === 'share') await shareText(`${g.retailer?.name ?? 'Shopping'} list`, plan.text)
+    if (plan.method === 'share') {
+      const result = await shareText(`${g.retailer?.name ?? 'Shopping'} list`, plan.text)
+      if (result === 'failed') return
+    }
     if (plan.method === 'print') printText(`${g.retailer?.name ?? 'Shopping'} list`, plan.text)
-    await run((r, a) => sendGroup(r, household.id, g.retailer, g.lines, g.estimatedCents, plan.url, a))
+    await run((r, a) => sendGroup(r, household.id, g.retailer, g.lines, g.estimatedCents, url, a))
     setSendTarget(null)
   }
 
@@ -141,7 +167,7 @@ export function ShopList() {
       ) : null}
 
       {openLines.length === 0 ? (
-        <EmptyState icon="cart" title="The list is empty" body="Low and Out items, plan needs, and anything you add land here, each with a store." />
+        <EmptyState icon="cart" title="The list is empty" body="Low and Out items, plan needs, and anything you add land here, each with a store." action={<Link to="/cook/plan" className="btn btn-primary btn-lg">Plan the week</Link>} />
       ) : (
         groups.map((g) => (
           <section key={g.retailer?.id ?? 'unrouted'} className="dest-group" aria-label={`${g.retailer?.name ?? 'In person'} list`}>
@@ -157,7 +183,7 @@ export function ShopList() {
             </div>
             <div className="list">
               {g.lines.map((l) => (
-                <LineRow key={l.id} line={l} estimate={safe(() => estimateLineCents(l, priceCtx), null)} onDrop={() => void run((r, a) => dropListLine(r, l, a))} onMove={() => setMoving(l)} />
+                <LineRow key={l.id} line={l} starter={isStarter(l)} estimate={safe(() => estimateLineCents(l, priceCtx), null)} onDrop={() => void run((r, a) => dropListLine(r, l, a))} onMove={() => setMoving(l)} />
               ))}
             </div>
             <div style={{ marginTop: 'var(--space-2)' }}>
@@ -168,7 +194,7 @@ export function ShopList() {
           </section>
         ))
       )}
-      {openLines.length > 0 && totalEst > 0 ? <p className="small muted" style={{ marginTop: 'var(--space-4)' }}>Estimated total across stores: {formatCents(totalEst)}. Unknown prices are left out, never guessed.</p> : null}
+      {openLines.length > 0 && totalEst > 0 ? <p className="small muted" style={{ marginTop: 'var(--space-4)' }}>Estimated total across stores: {formatCents(totalEst)}. Unknown prices are left out, never guessed.{anyStarter ? ' Some lines use starter estimates until a receipt or a typed price confirms them.' : ''}</p> : null}
 
       <Sheet
         open={!!sendTarget}
@@ -183,7 +209,7 @@ export function ShopList() {
               {sendTarget.lines.map((l) => (
                 <div key={l.id} className="line-row">
                   <div className="grow line-name">{l.qty ? `${formatQuantity({ amount: l.qty, unit: l.unit })} ` : ''}{l.name}</div>
-                  <div className="price-chip small">{formatCents(safe(() => estimateLineCents(l, priceCtx), null))}</div>
+                  <div className="price-chip small">{formatCents(safe(() => estimateLineCents(l, priceCtx), null))}{isStarter(l) ? <div><Badge tone="low">starter est.</Badge></div> : null}</div>
                 </div>
               ))}
             </div>
@@ -209,11 +235,11 @@ export function ShopList() {
           <div className="stack">
             {data.retailers.map((r) => (
               <Button key={r.id} size="lg" full variant={moving.retailerId === r.id ? 'primary' : 'secondary'} onClick={() => { void run((repo2, a) => updateLine(repo2, moving, { retailerId: r.id }, a, `${moving.name} moved to ${r.name}`)); setMoving(null) }}>
-                {r.name}
+                {r.name}{moving.retailerId === r.id ? ' (current)' : ''}
               </Button>
             ))}
             <Button size="lg" full variant={moving.retailerId === null ? 'primary' : 'secondary'} onClick={() => { void run((repo2, a) => updateLine(repo2, moving, { retailerId: null }, a, `${moving.name} moved to in person`)); setMoving(null) }}>
-              In person
+              In person{moving.retailerId === null ? ' (current)' : ''}
             </Button>
           </div>
         ) : null}
@@ -222,7 +248,7 @@ export function ShopList() {
   )
 }
 
-function LineRow({ line, estimate, onDrop, onMove }: { line: ListLine; estimate: number | null; onDrop: () => void; onMove: () => void }) {
+function LineRow({ line, starter, estimate, onDrop, onMove }: { line: ListLine; starter: boolean; estimate: number | null; onDrop: () => void; onMove: () => void }) {
   const reasons = line.reasons.map((r) => r.text ?? REASON_WORD[r.kind] ?? r.kind)
   return (
     <div className="line-row">
@@ -234,7 +260,7 @@ function LineRow({ line, estimate, onDrop, onMove }: { line: ListLine; estimate:
         </div>
         <div className="line-reasons">{reasons.join(' · ')}</div>
       </div>
-      <div className="price-chip small">{estimate !== null ? formatCents(estimate) : <Badge>no price</Badge>}</div>
+      <div className="price-chip small">{estimate !== null ? <>{formatCents(estimate)}{starter ? <div><Badge tone="low">starter est.</Badge></div> : null}</> : <Badge>no price</Badge>}</div>
       <Button variant="ghost" size="sm" icon="swap" aria-label={`Move ${line.name} to another store`} onClick={onMove} />
     </div>
   )

@@ -97,7 +97,7 @@ export function BlockCard({ block, today, onEat }: { block: FreezerBlock; today:
   }
   return (
     <Card tone={block.countRemaining === 0 ? 'neutral' : daysLeft !== null && daysLeft <= 14 ? 'low' : 'accent'} className="block-card">
-      <Link to={`/pantry/freezer/${block.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+      <Link to={`/pantry/freezer/${block.id}`} className="tap-link" style={{ textDecoration: 'none', color: 'inherit' }}>
         <span className="tape-label">{tape}</span>
       </Link>
       <div className="spread">

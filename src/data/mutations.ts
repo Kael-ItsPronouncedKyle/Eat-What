@@ -151,3 +151,15 @@ export async function dropListLine(repo: Repository, line: ListLine, actor: Acto
   const after: ListLine = { ...line, status: 'dropped', updatedAt: nowIso() }
   return replaceRow(repo, 'list_lines', line, after, actor, `Removed ${line.name} from the list`, 'drop')
 }
+
+/** Fold several undoables into one, so a multi-row action gets one undo bar that reverses all of it. */
+export function combineUndoables(parts: Undoable[], summary: string): Undoable {
+  const first = parts[0]
+  if (!first) throw new Error('combineUndoables needs at least one part')
+  return {
+    event: { ...first.event, summary },
+    undo: async () => {
+      for (const p of parts.slice().reverse()) await p.undo()
+    },
+  }
+}

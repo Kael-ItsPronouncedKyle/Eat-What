@@ -8,7 +8,7 @@ import { routeLine } from '@/domain/listing'
 import { useHouseholdData } from '@/app/hooks/useHouseholdData'
 import { useUndoable } from '@/app/hooks/useActions'
 import { useSession } from '@/app/session'
-import { addListLine, eatFreezerBlock } from '@/data/mutations'
+import { addListLine, combineUndoables, eatFreezerBlock } from '@/data/mutations'
 import { buildLine } from '@/features/shop/mutations'
 import { Badge, Button, Card, Sheet } from '@/design/components'
 import { MODE_LABEL } from './useSuggestions'
@@ -28,12 +28,17 @@ export function SuggestionCard({ s, compact }: { s: Suggestion; compact?: boolea
   const addMissing = async () => {
     if (!household) return
     const open = data.list_lines.filter((l) => l.status === 'open')
-    for (const m of s.missing) {
-      if (alreadyListed(m.item?.id ?? null, m.ingredient.ingredientName)) continue
-      const line = buildLine(household.id, { userId: '' }, { item: m.item, name: m.ingredient.ingredientName, qty: m.shortfall?.amount ?? m.ingredient.amount, unit: m.shortfall?.unit ?? m.ingredient.unit, reasons: [{ kind: 'almost_there', ref: r.id, text: r.title }], position: open.length })
-      line.retailerId = routeLine(line, { items: data.items, retailers: data.retailers, routingRules: data.routing_rules, links: data.item_retailer_links })
-      await run((repo, actor) => addListLine(repo, { ...line, createdBy: actor.userId, updatedBy: actor.userId }, actor), `Added ${missingText.length} ${missingText.length === 1 ? 'item' : 'items'} for ${r.title}`)
-    }
+    const todo = s.missing.filter((m) => !alreadyListed(m.item?.id ?? null, m.ingredient.ingredientName))
+    if (todo.length === 0) return
+    await run(async (repo, actor) => {
+      const parts = []
+      for (const [i, m] of todo.entries()) {
+        const line = buildLine(household.id, actor, { item: m.item, name: m.ingredient.ingredientName, qty: m.shortfall?.amount ?? m.ingredient.amount, unit: m.shortfall?.unit ?? m.ingredient.unit, reasons: [{ kind: 'almost_there', ref: r.id, text: r.title }], position: open.length + i })
+        line.retailerId = routeLine(line, { items: data.items, retailers: data.retailers, routingRules: data.routing_rules, links: data.item_retailer_links })
+        parts.push(await addListLine(repo, line, actor))
+      }
+      return combineUndoables(parts, `Added ${parts.length} ${parts.length === 1 ? 'item' : 'items'} for ${r.title}`)
+    })
   }
 
   return (

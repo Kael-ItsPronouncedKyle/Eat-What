@@ -2,7 +2,8 @@ import type { Item, ListLine, ListSend, Price, Retailer, Spend, TenantRow } from
 import { SPEND_CATEGORY_FOR_ITEM } from '@/domain/types'
 import { newId } from '@/domain/ids'
 import { today } from '@/domain/dates'
-import { applyDelta } from '@/domain/status'
+import { applyDelta, deriveStatus } from '@/domain/status'
+import { convert, normalizeUnit } from '@/domain/units'
 import { insertRow, logEvent, replaceRow, type Actor, type Undoable } from '@/data/mutations'
 import { nowIso, type Repository } from '@/data/repository'
 
@@ -81,8 +82,19 @@ export async function receiveSend(repo: Repository, send: ListSend, lines: ListL
     const item = items.find((i) => i.id === l.itemId)
     if (!item) continue
     beforeItems.push({ ...item })
-    if (item.trackMode === 'count') afterItems.push({ ...applyDelta(item, l.qty ?? 1), useBy: item.useBy, updatedAt: now })
-    else afterItems.push({ ...item, status: 'ok', updatedAt: now })
+    if (item.trackMode === 'count') {
+      const lineUnit = normalizeUnit(l.unit)
+      const itemUnit = normalizeUnit(item.unit)
+      const qty = l.qty ?? 1
+      const conv = lineUnit === itemUnit ? { amount: qty, unit: itemUnit } : convert({ amount: qty, unit: lineUnit }, itemUnit)
+      if (conv) afterItems.push({ ...applyDelta(item, conv.amount), updatedAt: now })
+      else {
+        // Units do not compare (a pack of rolls against a count of rolls): restock to par rather than invent a number.
+        const restocked: Item = { ...item, qty: Math.max(item.qty ?? 0, item.par ?? 1), updatedAt: now }
+        restocked.status = deriveStatus(restocked)
+        afterItems.push(restocked)
+      }
+    } else afterItems.push({ ...item, status: 'ok', updatedAt: now })
   }
   await repo.table('list_lines').putMany(lines.map((l) => ({ ...l, status: 'received' as const, updatedAt: now })))
   if (afterItems.length) await repo.table('items').putMany(afterItems)
@@ -90,7 +102,9 @@ export async function receiveSend(repo: Repository, send: ListSend, lines: ListL
   await repo.table('list_sends').put(afterSend)
   let spend: Spend | null = null
   if (actualCents !== null) {
-    const cat = afterItems[0] ? SPEND_CATEGORY_FOR_ITEM[afterItems[0].category] : 'groceries'
+    const tally = new Map<string, number>()
+    for (const it of afterItems) tally.set(SPEND_CATEGORY_FOR_ITEM[it.category], (tally.get(SPEND_CATEGORY_FOR_ITEM[it.category]) ?? 0) + 1)
+    const cat = ([...tally.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'groceries') as Spend['category']
     spend = { ...base(send.householdId, actor), retailerId: send.retailerId, amountCents: actualCents, kind: 'actual', category: cat, occurredOn: today(), listSendId: send.id, receiptId: null, note: 'Received' }
     await repo.table('spend').put(spend)
   }

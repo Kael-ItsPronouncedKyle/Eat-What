@@ -7,6 +7,7 @@ import { useHouseholdData } from '@/app/hooks/useHouseholdData'
 import { useUndoable } from '@/app/hooks/useActions'
 import { Badge, Button, Card, SelectField, Sheet, TextField, Toggle } from '@/design/components'
 import { addRetailer, addRoutingRule, removeRetailer, removeRoutingRule, updateRetailer, updateRoutingRule } from './mutations'
+import { combineUndoables } from '@/data/mutations'
 
 const KINDS: { value: RetailerKind; label: string }[] = [
   { value: 'instacart', label: 'Instacart' }, { value: 'heb', label: 'H-E-B' }, { value: 'kroger', label: 'Kroger' }, { value: 'walmart', label: 'Walmart' },
@@ -88,11 +89,15 @@ export function Retailers() {
           retailer={editing}
           onClose={() => { setAdding(false); setEditing(null) }}
           onSave={(patch) => {
-            if (editing) void run((repo, actor) => updateRetailer(repo, editing, patch, actor))
-            else void run((repo, actor) => addRetailer(repo, household.id, { name: patch.name ?? 'Store', kind: patch.kind ?? 'other', config: patch.config ?? {}, isPrimaryGrocery: patch.isPrimaryGrocery ?? false, isPrimaryOther: patch.isPrimaryOther ?? false, sortOrder: retailers.length }, actor))
-            // Only one primary of each kind.
-            if (patch.isPrimaryGrocery) for (const r of retailers) if (r.id !== editing?.id && r.isPrimaryGrocery) void run((repo, actor) => updateRetailer(repo, r, { isPrimaryGrocery: false }, actor, `${r.name} is no longer the food default`))
-            if (patch.isPrimaryOther) for (const r of retailers) if (r.id !== editing?.id && r.isPrimaryOther) void run((repo, actor) => updateRetailer(repo, r, { isPrimaryOther: false }, actor, `${r.name} is no longer the other default`))
+            void run(async (repo, actor) => {
+              const parts = []
+              if (editing) parts.push(await updateRetailer(repo, editing, patch, actor))
+              else parts.push(await addRetailer(repo, household.id, { name: patch.name ?? 'Store', kind: patch.kind ?? 'other', config: patch.config ?? {}, isPrimaryGrocery: patch.isPrimaryGrocery ?? false, isPrimaryOther: patch.isPrimaryOther ?? false, sortOrder: retailers.length }, actor))
+              // Only one primary of each kind; all of it is one undo.
+              if (patch.isPrimaryGrocery) for (const r of retailers) if (r.id !== editing?.id && r.isPrimaryGrocery) parts.push(await updateRetailer(repo, r, { isPrimaryGrocery: false }, actor, `${r.name} is no longer the food default`))
+              if (patch.isPrimaryOther) for (const r of retailers) if (r.id !== editing?.id && r.isPrimaryOther) parts.push(await updateRetailer(repo, r, { isPrimaryOther: false }, actor, `${r.name} is no longer the other default`))
+              return combineUndoables(parts, editing ? `Updated ${patch.name ?? editing.name}` : `Added ${patch.name ?? 'a store'}`)
+            })
             setAdding(false); setEditing(null)
           }}
           onRemove={editing ? () => { void run((repo, actor) => removeRetailer(repo, editing, actor)); setEditing(null) } : undefined}

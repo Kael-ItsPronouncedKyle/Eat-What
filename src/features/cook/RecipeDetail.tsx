@@ -15,7 +15,7 @@ import { useHouseholdData } from '@/app/hooks/useHouseholdData'
 import { useUndoable } from '@/app/hooks/useActions'
 import { useToday } from '@/app/hooks/useToday'
 import { useSession } from '@/app/session'
-import { addListLine } from '@/data/mutations'
+import { addListLine, combineUndoables } from '@/data/mutations'
 import { buildLine } from '@/features/shop/mutations'
 import { Badge, Button, Card, EmptyState, Icon, SelectField, Sheet, Stepper } from '@/design/components'
 import { approveRecipe, archiveRecipe, linkIngredient } from './mutations'
@@ -46,7 +46,7 @@ export function RecipeDetail() {
   const availability = useMemo(() => (recipe ? recipeAvailability(recipe, matchCtx, today, scale) : null), [recipe, matchCtx, today, scale])
   const subs = useMemo(() => (recipe ? applySubstitutions(recipe.ingredients, ruleCtx) : null), [recipe, ruleCtx])
   const violations = useMemo(() => (recipe ? allergyViolations(recipe.ingredients, ruleCtx) : []), [recipe, ruleCtx])
-  const cost = useMemo(() => (recipe && availability ? costPerServingCents(availability.ingredients, recipe.baseYield * scale, data.prices, today) : null), [recipe, availability, data.prices, today, scale])
+  const cost = useMemo(() => (recipe && availability ? costPerServingCents(availability.ingredients, recipe.baseYield, data.prices, today) : null), [recipe, availability, data.prices, today])
   const nutrition = useMemo(() => (recipe ? (recipe.nutrition ?? recipeNutrition(recipe.ingredients, recipe.baseYield, new Map())) : null), [recipe])
   const flags = useMemo(() => dietFlags(nutrition, ruleCtx), [nutrition, ruleCtx])
   const blocks = data.freezer_blocks.filter((b) => b.recipeId === id && b.countRemaining > 0)
@@ -63,12 +63,17 @@ export function RecipeDetail() {
   const addMissing = async () => {
     if (!household) return
     const open = data.list_lines.filter((l) => l.status === 'open')
-    for (const m of availability.missing) {
-      if (open.some((l) => (m.item ? l.itemId === m.item.id : l.name.toLowerCase() === m.ingredient.ingredientName.toLowerCase()))) continue
-      const line = buildLine(household.id, { userId: '' }, { item: m.item, name: m.ingredient.ingredientName, qty: m.shortfall?.amount ?? (m.ingredient.amount !== null ? m.ingredient.amount * scale : null), unit: m.shortfall?.unit ?? m.ingredient.unit, reasons: [{ kind: 'almost_there', ref: recipe.id, text: recipe.title }], position: open.length })
-      line.retailerId = routeLine(line, { items: data.items, retailers: data.retailers, routingRules: data.routing_rules, links: data.item_retailer_links })
-      await run((repo, actor) => addListLine(repo, { ...line, createdBy: actor.userId, updatedBy: actor.userId }, actor), `Added ${availability.missing.length} ${availability.missing.length === 1 ? 'item' : 'items'} for ${recipe.title}`)
-    }
+    const todo = availability.missing.filter((m) => !open.some((l) => (m.item ? l.itemId === m.item.id : l.name.toLowerCase() === m.ingredient.ingredientName.toLowerCase())))
+    if (todo.length === 0) return
+    await run(async (repo, actor) => {
+      const parts = []
+      for (const [i, m] of todo.entries()) {
+        const line = buildLine(household.id, actor, { item: m.item, name: m.ingredient.ingredientName, qty: m.shortfall?.amount ?? (m.ingredient.amount !== null ? m.ingredient.amount * scale : null), unit: m.shortfall?.unit ?? m.ingredient.unit, reasons: [{ kind: 'almost_there', ref: recipe.id, text: recipe.title }], position: open.length + i })
+        line.retailerId = routeLine(line, { items: data.items, retailers: data.retailers, routingRules: data.routing_rules, links: data.item_retailer_links })
+        parts.push(await addListLine(repo, line, actor))
+      }
+      return combineUndoables(parts, `Added ${parts.length} ${parts.length === 1 ? 'item' : 'items'} for ${recipe.title}`)
+    })
   }
   const standing = standingMinutes(recipe)
 

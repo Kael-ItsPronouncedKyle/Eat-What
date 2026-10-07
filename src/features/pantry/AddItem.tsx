@@ -44,7 +44,8 @@ export function AddItem() {
   }, [parsed.rest, data.items, data.item_aliases, data.alwaysHave])
 
   const locations = data.locations.filter((l) => !l.isFreezerShelf).sort((a, b) => a.sortOrder - b.sortOrder)
-  const effectiveMode: TrackMode = parsed.amount !== null && mode === 'status' ? 'count' : mode
+  const [modeTouched, setModeTouched] = useState(false)
+  const effectiveMode: TrackMode = parsed.amount !== null && !modeTouched ? 'count' : mode
 
   const save = async () => {
     if (!data.householdId || !parsed.rest) return
@@ -122,7 +123,7 @@ export function AddItem() {
         <Segmented
           label="How to track it"
           value={effectiveMode}
-          onChange={setMode}
+          onChange={(m) => { setMode(m); setModeTouched(true) }}
           options={[
             { value: 'status', label: 'OK / Low / Out', description: 'Best for staples' },
             { value: 'count', label: 'Count', description: 'Cans, pounds, rolls' },

@@ -77,8 +77,19 @@ export class SupabaseRepository implements Repository {
     }
     return {
       list: async (householdId, opts) => {
-        let q = from().select('*').eq('household_id', householdId)
-        if (!opts?.includeDeleted) q = q.is('deleted_at', null)
+        let q
+        if (name === 'households') {
+          q = from().select('*').eq('id', householdId)
+        } else if (name === 'profiles') {
+          const { data: members, error: mErr } = await this.client.from('memberships').select('user_id').eq('household_id', householdId).is('deleted_at', null)
+          if (mErr) throw mErr
+          const ids = (members ?? []).map((m) => m.user_id)
+          if (ids.length === 0) return []
+          q = from().select('*').in('user_id', ids)
+        } else {
+          q = from().select('*').eq('household_id', householdId)
+          if (!opts?.includeDeleted) q = q.is('deleted_at', null)
+        }
         const { data, error } = await q
         if (error) throw error
         return (data as Record<string, unknown>[]).map((r) => toCamel<Row>(r))

@@ -17,7 +17,7 @@ export function ItemCard({ item, location, today }: { item: Item; location: Loca
     <Card tone={TONE[item.status]} className="item-card-wrap">
       <div className="item-card">
         <div className="grow">
-          <Link to={`/pantry/item/${item.id}`} className="card-title" style={{ textDecoration: 'none', color: 'inherit' }}>
+          <Link to={`/pantry/item/${item.id}`} className="card-title tap-link" style={{ textDecoration: 'none', color: 'inherit' }}>
             {item.name}
           </Link>
           <div className="item-meta small muted">

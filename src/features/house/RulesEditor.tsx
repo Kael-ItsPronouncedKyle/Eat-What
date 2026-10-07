@@ -19,7 +19,7 @@ const TYPE_LABEL: Record<RuleType, string> = { allergy: 'Allergy or dislike', pr
 /** Plain-language entry: "Sarah can't have coconut, swap lime juice" becomes a structured allergy row shown for confirm. */
 export function parsePlainRule(text: string, persons: { id: string; name: string }[]): { type: 'allergy'; personId: string | null; ingredient: string; substitute: string | null; severity: 'avoid' | 'dislike' | 'severe' } | null {
   const t = text.trim()
-  const m = /^(?:(.+?)\s+)?(?:can't|cannot|can not|doesn't|does not|won't|is allergic to|allergic to|no|hates?|dislikes?)\s+(?:have\s+|eat\s+)?(.+?)(?:[,;.]?\s+(?:swap|sub|substitute|use)(?: in)?\s+(.+))?$/i.exec(t)
+  const m = /^(?:(.+?)\s+)?(?:can't|cannot|can not|doesn't|does not|won't|is allergic to|allergic to|no|hates?|dislikes?)\s+(?:have\s+|eat\s+|like\s+|want\s+)?(.+?)(?:[,;.]?\s+(?:swap|sub|substitute|use)(?: in)?\s+(.+))?$/i.exec(t)
   if (!m) return null
   const who = (m[1] ?? '').replace(/^my\s+/i, '').trim()
   const ingredient = (m[2] ?? '').trim().replace(/^(any|the)\s+/i, '')
@@ -100,7 +100,7 @@ export function RulesEditor() {
                 <div className="rule-card">
                   <div className="grow rule-text">{describe(r)}</div>
                   <Toggle label={r.active ? 'On' : 'Off'} checked={r.active} onChange={(v) => void run((repo, actor) => updateRule(repo, r, { active: v }, actor, `${v ? 'Turned on' : 'Turned off'}: ${describe(r)}`))} />
-                  <Button variant="ghost" size="sm" icon="trash" aria-label="Remove rule" onClick={() => void run((repo, actor) => removeRule(repo, r, actor, `Removed rule: ${describe(r)}`))} />
+                  <Button variant="ghost" icon="trash" aria-label="Remove rule" onClick={() => { if (window.confirm(`Remove this rule? ${describe(r)}`)) void run((repo, actor) => removeRule(repo, r, actor, `Removed rule: ${describe(r)}`)) }} />
                 </div>
               </Card>
             ))}

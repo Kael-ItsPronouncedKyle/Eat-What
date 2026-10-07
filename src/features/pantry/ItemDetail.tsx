@@ -207,7 +207,7 @@ export function ItemDetail() {
         <p>Nothing else changes. Recipes that use it will show it as missing.</p>
       </Sheet>
 
-      <EditItemSheet item={item} open={editing} onClose={() => setEditing(false)} />
+      <EditItemSheet key={`${item.id}:${item.updatedAt}`} item={item} open={editing} onClose={() => setEditing(false)} />
     </div>
   )
 }
@@ -238,7 +238,7 @@ function EditItemSheet({ item, open, onClose }: { item: Item; open: boolean; onC
           locationId: locationId || null,
           trackMode: mode,
           unit: mode === 'count' ? unit || null : null,
-          qty: mode === 'count' ? (item.qty ?? 0) : null,
+          qty: mode === 'count' ? (item.qty ?? (par ? Number(par) : 1)) : null,
           par: mode === 'count' && par ? Number(par) : null,
           useBy: useBy || null,
           alwaysHave,

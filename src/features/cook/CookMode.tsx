@@ -3,7 +3,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router'
 import type { Deduction, FreezerBlock, TenantRow } from '@/domain/types'
 import { recipeAvailability } from '@/domain/matching'
 import { applySubstitutions } from '@/domain/rules'
-import { formatQuantity } from '@/domain/units'
+import { convert, formatQuantity, normalizeUnit } from '@/domain/units'
 import { guessFoodType, qualityUntil } from '@/domain/labels'
 import { portionLabel } from '@/domain/containers'
 import { useHouseholdData } from '@/app/hooks/useHouseholdData'
@@ -60,6 +60,8 @@ export function CookMode() {
   }, [recipe, maxStanding])
 
   const step = steps[Math.min(i, steps.length - 1)] ?? null
+  const stepRef = useRef(step)
+  useEffect(() => { stepRef.current = step }, [step])
   const last = i >= steps.length - 1
   const next = useCallback(() => setI((x) => Math.min(steps.length - 1, x + 1)), [steps.length])
   const back = useCallback(() => setI((x) => Math.max(0, x - 1)), [])
@@ -95,7 +97,7 @@ export function CookMode() {
       const text = Array.from(e.results).slice(-1)[0]?.[0]?.transcript?.toLowerCase() ?? ''
       if (/\b(next|forward|done with that)\b/.test(text)) next()
       else if (/\b(back|previous)\b/.test(text)) back()
-      else if (/\b(repeat|again|read that)\b/.test(text) && typeof speechSynthesis !== 'undefined' && step) speechSynthesis.speak(new SpeechSynthesisUtterance(step.text))
+      else if (/\b(repeat|again|read that)\b/.test(text) && typeof speechSynthesis !== 'undefined' && stepRef.current) speechSynthesis.speak(new SpeechSynthesisUtterance(stepRef.current.text))
       else {
         const m = /(\d+)\s*(?:minute|min)/.exec(text)
         if (m && /timer/.test(text)) setTimerRequest(Number(m[1]))
@@ -211,8 +213,8 @@ function FinishSheet({ recipeId, servings, scale, batchId, planEntryId, onClose,
   const recipe = data.recipesWithIngredients.find((r) => r.id === recipeId)!
   const batch = data.batches.find((b) => b.id === batchId) ?? null
   const planEntry = data.plan_entries.find((e) => e.id === planEntryId) ?? null
-  const [freeze, setFreeze] = useState(!!batch || recipe.tags.includes('freezer_safe'))
-  const [lines, setLines] = useState<{ containerId: string; count: number }[]>(() => (batch ? batch.containerPlan.map((l) => ({ containerId: l.containerId, count: l.count })) : data.containers[0] ? [{ containerId: data.containers[0].id, count: 4 }] : []))
+  const [freeze, setFreeze] = useState(!!batch)
+  const [lines, setLines] = useState<{ containerId: string; count: number }[]>(() => (batch ? batch.containerPlan.map((l) => ({ containerId: l.containerId, count: l.count })) : []))
   const [spot, setSpot] = useState('')
   const [personId, setPersonId] = useState('')
   const [madeServings, setMadeServings] = useState(Math.round(servings))
@@ -220,15 +222,27 @@ function FinishSheet({ recipeId, servings, scale, batchId, planEntryId, onClose,
   const [deductions, setDeductions] = useState<Deduction[]>(() =>
     availability.ingredients
       .filter((a) => a.item)
-      .map((a) => ({
-        ingredientId: a.ingredient.id,
-        itemId: a.item!.id,
-        itemName: a.item!.name,
-        amount: a.item!.trackMode === 'count' && a.ingredient.amount !== null ? Math.round(a.ingredient.amount * scale * 100) / 100 : null,
-        unit: a.item!.trackMode === 'count' ? a.ingredient.unit : null,
-        newStatus: a.item!.trackMode === 'status' ? a.item!.status : undefined,
-        action: a.item!.alwaysHave ? 'skip' : 'apply',
-      })),
+      .map((a) => {
+        const item = a.item!
+        let amount: number | null = null
+        let comparable = true
+        if (item.trackMode === 'count' && a.ingredient.amount !== null) {
+          const need = { amount: a.ingredient.amount * scale, unit: normalizeUnit(a.ingredient.unit) }
+          const target = normalizeUnit(item.unit)
+          const conv = need.unit === target ? need : convert(need, target)
+          if (conv) amount = Math.round(conv.amount * 100) / 100
+          else comparable = false
+        }
+        return {
+          ingredientId: a.ingredient.id,
+          itemId: item.id,
+          itemName: item.name,
+          amount,
+          unit: item.trackMode === 'count' ? item.unit : null,
+          newStatus: item.trackMode === 'status' ? item.status : undefined,
+          action: item.alwaysHave || (item.trackMode === 'count' && !comparable) ? 'skip' : 'apply',
+        } as Deduction
+      }),
   )
 
   const save = async () => {
@@ -298,8 +312,8 @@ function FinishSheet({ recipeId, servings, scale, batchId, planEntryId, onClose,
             <div key={d.ingredientId ?? idx} className="deduction-row">
               <div className="grow">
                 <div>{d.itemName}</div>
-                {d.amount !== null ? (
-                  <div className="small muted">use {formatQuantity({ amount: d.amount, unit: d.unit })}</div>
+                {data.items.find((i) => i.id === d.itemId)?.trackMode === 'count' ? (
+                  <div className="small muted">{d.amount !== null ? `use ${formatQuantity({ amount: d.amount, unit: d.unit })}` : `recipe units differ from the pantry's ${d.unit ?? 'count'}; enter the amount used`}</div>
                 ) : (
                   <div className="row-wrap small" role="group" aria-label={`${d.itemName} still OK?`}>
                     <span className="muted">Still:</span>
@@ -309,7 +323,7 @@ function FinishSheet({ recipeId, servings, scale, batchId, planEntryId, onClose,
                   </div>
                 )}
               </div>
-              {d.amount !== null ? <Stepper label={d.itemName} value={d.action === 'skip' ? 0 : d.amount} step={0.5} onChange={(n) => setDeductions(deductions.map((x, j) => (j === idx ? { ...x, amount: n, action: n > 0 ? 'apply' : 'skip' } : x)))} /> : null}
+              {data.items.find((i) => i.id === d.itemId)?.trackMode === 'count' ? <Stepper label={d.itemName} value={d.action === 'skip' ? 0 : (d.amount ?? 0)} unit={d.unit ?? undefined} step={0.5} onChange={(n) => setDeductions(deductions.map((x, j) => (j === idx ? { ...x, amount: n, action: n > 0 ? 'apply' : 'skip' } : x)))} /> : null}
               <Button variant={d.action === 'skip' ? 'secondary' : 'ghost'} size="sm" onClick={() => setDeductions(deductions.map((x, j) => (j === idx ? { ...x, action: x.action === 'skip' ? 'apply' : 'skip' } : x)))}>{d.action === 'skip' ? 'Skipped' : 'Skip'}</Button>
               {d.action === 'skip' ? <Badge>skip</Badge> : null}
             </div>

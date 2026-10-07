@@ -13,14 +13,6 @@ import type { LocalRepository } from '@/data/local/LocalRepository'
 import { renderWithApp, seededRepo } from '@/test/render'
 import { HomePage } from './HomePage'
 
-// jsdom reflects <dialog open> but ships no show/showModal/close; the shared Sheet calls close() when it hides.
-const dialogProto = globalThis.HTMLDialogElement?.prototype as (HTMLDialogElement & { close?: () => void }) | undefined
-if (dialogProto && typeof dialogProto.close !== 'function') {
-  dialogProto.show = function (this: HTMLDialogElement) { this.setAttribute('open', '') }
-  dialogProto.showModal = function (this: HTMLDialogElement) { this.setAttribute('open', '') }
-  dialogProto.close = function (this: HTMLDialogElement) { this.removeAttribute('open') }
-}
-
 function base(householdId: string): TenantRow {
   const now = nowIso()
   return { id: newId(), householdId, createdAt: now, createdBy: null, updatedAt: now, updatedBy: null, deletedAt: null }

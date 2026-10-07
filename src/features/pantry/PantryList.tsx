@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
 import type { Item } from '@/domain/types'
 import { CATEGORY_LABEL } from '@/domain/types'
 import { cycleStatus, expiryHorizon } from '@/domain/status'
@@ -18,7 +18,9 @@ export function PantryList() {
   const { run } = useUndoable()
   const [locationId, setLocationId] = useState<string | 'all'>('all')
   const [query, setQuery] = useState('')
-  const [view, setView] = useState<View>('all')
+  const [params] = useSearchParams()
+  const initialView = params.get('view')
+  const [view, setView] = useState<View>(() => (initialView === 'low' || initialView === 'staples' ? initialView : 'all'))
 
   const locations = useMemo(() => data.locations.filter((l) => !l.isFreezerShelf).sort((a, b) => a.sortOrder - b.sortOrder), [data.locations])
   const locById = useMemo(() => new Map(data.locations.map((l) => [l.id, l] as const)), [data.locations])
@@ -33,10 +35,12 @@ export function PantryList() {
     if (view === 'staples') list = list.filter((i) => i.trackMode === 'status')
     if (view === 'low') list = list.filter((i) => i.status !== 'ok')
     const rank: Record<Item['status'], number> = { out: 0, low: 1, ok: 2 }
+    // The staples grid keeps a stable name order so a tile never moves out from under the finger.
+    if (view === 'staples') return list.sort((a, b) => a.name.localeCompare(b.name))
     return list.sort((a, b) => rank[a.status] - rank[b.status] || a.name.localeCompare(b.name))
   }, [data.items, locationId, q, view])
 
-  const expiring = useMemo(() => data.items.filter((i) => expiryHorizon(i, today) !== null && expiryHorizon(i, today) !== 'this_week'), [data.items, today])
+  const expiring = useMemo(() => data.items.filter((i) => i.status !== 'out' && expiryHorizon(i, today) !== null && expiryHorizon(i, today) !== 'this_week'), [data.items, today])
   const lowOut = data.items.filter((i) => i.status !== 'ok').length
 
   if (data.loading) return <div className="page" aria-busy="true" />
@@ -123,12 +127,11 @@ export function PantryList() {
 
 export function StaplesGrid({ items, onTap }: { items: Item[]; onTap: (item: Item) => void }) {
   return (
-    <div className="staples-grid" role="list" aria-label="Staples">
+    <div className="staples-grid" role="group" aria-label="Staples">
       {items.map((item) => (
         <button
           key={item.id}
           type="button"
-          role="listitem"
           className={`staple is-${item.status}`}
           onClick={() => onTap(item)}
           aria-label={`${item.name}, ${item.status === 'ok' ? 'OK' : item.status === 'low' ? 'Low' : 'Out'}. Tap to change.`}

@@ -40,7 +40,7 @@ export function Ordered() {
                   <li key={l.id}>{l.qty ? `${formatQuantity({ amount: l.qty, unit: l.unit })} ` : ''}{l.name}</li>
                 ))}
               </ul>
-              <Button variant="primary" size="lg" full icon="check" onClick={() => { setActual(s.estimatedTotalCents ? (s.estimatedTotalCents / 100).toFixed(2) : ''); setReceiving(s) }}>
+              <Button variant="primary" size="lg" full icon="check" onClick={() => { setActual(''); setReceiving(s) }}>
                 It arrived
               </Button>
             </div>
@@ -76,7 +76,7 @@ export function Ordered() {
           ) : null
         }
       >
-        <TextField label="Actual total (dollars, optional)" inputMode="decimal" value={actual} onChange={(e) => setActual(e.target.value)} />
+        <TextField label="Actual total (dollars, optional)" inputMode="decimal" value={actual} onChange={(e) => setActual(e.target.value)} hint={receiving?.estimatedTotalCents ? `Estimate was ${formatCents(receiving.estimatedTotalCents)}. Leave blank if you do not have the receipt.` : undefined} />
       </Sheet>
     </div>
   )

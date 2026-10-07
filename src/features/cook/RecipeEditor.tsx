@@ -46,12 +46,16 @@ export function RecipeEditor() {
   const [draft, setDraft] = useState(existing?.status === 'draft')
   const [saving, setSaving] = useState(false)
 
+  const existingByName = new Map((existing?.ingredients ?? []).map((i) => [i.ingredientName.trim().toLowerCase(), i] as const))
   const parsedIngredients: RecipeDraftIngredient[] = ingredientsText.split(/\r?\n/).map((l) => l.trim()).filter(Boolean).map((l) => {
     const optional = /\(optional\)/i.test(l)
     const p = parseIngredientLine(l.replace(/\(optional\)/i, '').trim())
-    return { ingredientName: p.name, amount: p.amount, unit: p.unit, preparation: p.preparation, optional }
+    const prev = existingByName.get(p.name.trim().toLowerCase())
+    return { ingredientName: p.name, amount: p.amount, unit: p.unit, preparation: p.preparation, optional, itemId: prev?.itemId ?? null, substitute: prev?.substitute ?? null }
   })
   const steps: RecipeStep[] = stepsText.split(/\r?\n/).map((l) => l.trim()).filter(Boolean).map((text) => {
+    const prev = existing?.steps.find((st) => st.text.trim() === text)
+    if (prev) return { ...prev, text }
     const timer = /(\d+)\s*(?:min|minute)/i.exec(text)
     return { text, timerMinutes: timer ? Number(timer[1]) : undefined, sitBreak: /\bsit\b/i.test(text) }
   })
@@ -64,9 +68,10 @@ export function RecipeEditor() {
       const persons = data.persons
       const richer = persons.find((p) => p.plateProfile.richness === 'richer')?.id ?? 'richer'
       const lighter = persons.find((p) => p.plateProfile.richness === 'lighter')?.id ?? 'lighter'
+      const existingKeys = Object.keys(existing?.plateNotes ?? {})
       const plateNotes: Record<string, string> = {}
-      if (plateRich.trim()) plateNotes[richer] = plateRich.trim()
-      if (plateLight.trim()) plateNotes[lighter] = plateLight.trim()
+      if (plateRich.trim()) plateNotes[existingKeys[0] ?? richer] = plateRich.trim()
+      if (plateLight.trim()) plateNotes[existingKeys[1] ?? lighter] = plateLight.trim()
       const r = await run((repo, actor) =>
         saveRecipe(
           repo,

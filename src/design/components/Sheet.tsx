@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useId, useRef, type ReactNode } from 'react'
 import { IconButton } from './Button'
 
 export interface SheetProps {
@@ -15,6 +15,7 @@ export interface SheetProps {
 /** Bottom sheet built on <dialog>, so focus trapping, Escape, and inertness come from the platform. */
 export function Sheet({ open, title, onClose, children, footer, description }: SheetProps) {
   const ref = useRef<HTMLDialogElement>(null)
+  const titleId = useId()
   useEffect(() => {
     const d = ref.current
     if (!d) return
@@ -39,8 +40,8 @@ export function Sheet({ open, title, onClose, children, footer, description }: S
     <dialog
       ref={ref}
       className="sheet"
-      aria-labelledby="sheet-title"
-      aria-describedby={description ? 'sheet-desc' : undefined}
+      aria-labelledby={titleId}
+      aria-describedby={description ? `${titleId}-desc` : undefined}
       onClick={(e) => {
         if (e.target === ref.current) onClose()
       }}
@@ -48,10 +49,10 @@ export function Sheet({ open, title, onClose, children, footer, description }: S
       <div className="sheet-panel" role="document">
         <div className="sheet-grab" aria-hidden="true" />
         <div className="sheet-header">
-          <h2 id="sheet-title" className="sheet-title">{title}</h2>
+          <h2 id={titleId} className="sheet-title">{title}</h2>
           <IconButton icon="close" label="Close" onClick={onClose} />
         </div>
-        {description ? <p id="sheet-desc" className="muted small sheet-desc">{description}</p> : null}
+        {description ? <p id={`${titleId}-desc`} className="muted small sheet-desc">{description}</p> : null}
         <div className="sheet-body">{children}</div>
         {footer ? <div className="sheet-footer">{footer}</div> : null}
       </div>

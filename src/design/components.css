@@ -9,7 +9,7 @@
 }
 .btn:active { transform: scale(0.98); }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
-.btn-sm { min-height: 40px; min-width: 40px; font-size: var(--fs-sm); padding: 0 var(--space-3); border-radius: var(--radius-sm); }
+.btn-sm { min-height: var(--tap); min-width: var(--tap); font-size: var(--fs-sm); padding: 0 var(--space-3); border-radius: var(--radius-sm); }
 .btn-lg { min-height: var(--tap-lg); font-size: var(--fs-lg); border-radius: var(--radius-lg); padding: 0 var(--space-5); }
 .btn-full { width: 100%; }
 .btn-primary { background: var(--accent); color: var(--accent-fg); }
@@ -146,3 +146,6 @@
 
 /* Links styled as buttons never underline. */
 a.btn, a.btn:hover { text-decoration: none; }
+
+/* Text links that open a record are tap targets too. */
+.tap-link { display: inline-flex; align-items: center; min-height: var(--tap); }

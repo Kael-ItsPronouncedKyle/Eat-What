@@ -7,6 +7,7 @@ import { useUndoable } from '@/app/hooks/useActions'
 import { kitContainers, type Kit } from '@/data/seed/defaults'
 import { Badge, Button, Card, SelectField, Sheet, Stepper, TextField, Toggle } from '@/design/components'
 import { addContainer, removeContainer, updateContainer } from './mutations'
+import { combineUndoables } from '@/data/mutations'
 
 const KINDS: { value: ContainerKind; label: string }[] = [
   { value: 'tray', label: 'Silicone tray (Souper Cubes)' }, { value: 'bag', label: 'Zip bag' }, { value: 'tub', label: 'Tub or deli quart' }, { value: 'pan', label: 'Foil or loaf pan' },
@@ -23,10 +24,13 @@ export function Containers() {
 
   const addPreset = (kit: Kit) => {
     if (!household) return
-    for (const c of kitContainers(household.id, kit)) {
-      if (containers.some((x) => x.name === c.name)) continue
-      void run((repo, actor) => addContainer(repo, household.id, { name: c.name, kind: c.kind, capacityMl: c.capacityMl, countOwned: c.countOwned, disposable: c.disposable, ovenSafe: c.ovenSafe, microwaveSafe: c.microwaveSafe, sortOrder: containers.length }, actor))
-    }
+    const toAdd = kitContainers(household.id, kit).filter((c) => !containers.some((x) => x.name === c.name))
+    if (toAdd.length === 0) return
+    void run(async (repo, actor) => {
+      const parts = []
+      for (const [i, c] of toAdd.entries()) parts.push(await addContainer(repo, household.id, { name: c.name, kind: c.kind, capacityMl: c.capacityMl, countOwned: c.countOwned, disposable: c.disposable, ovenSafe: c.ovenSafe, microwaveSafe: c.microwaveSafe, sortOrder: containers.length + i }, actor))
+      return combineUndoables(parts, `Added ${parts.length} containers from the preset`)
+    })
   }
 
   return (
@@ -84,7 +88,7 @@ export function Containers() {
 function ContainerSheet({ container, onClose, onSave, onRemove }: { container: Container | null; onClose: () => void; onSave: (c: Omit<Container, 'id' | 'householdId' | 'createdAt' | 'createdBy' | 'updatedAt' | 'updatedBy' | 'deletedAt' | 'sortOrder'>) => void; onRemove?: () => void }) {
   const [name, setName] = useState(container?.name ?? '')
   const [kind, setKind] = useState<ContainerKind>(container?.kind ?? 'bag')
-  const [cups, setCups] = useState(container ? String(container.capacityMl / 240) : '4')
+  const [cups, setCups] = useState(container ? String(Math.round((container.capacityMl / 240) * 100) / 100) : '4')
   const [count, setCount] = useState(container?.countOwned ?? 10)
   const [disposable, setDisposable] = useState(container?.disposable ?? false)
   const [oven, setOven] = useState(container?.ovenSafe ?? false)
