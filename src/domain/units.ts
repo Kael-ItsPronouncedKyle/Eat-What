@@ -156,7 +156,7 @@ function cleanKey(raw: string): string {
 
 /** Known spellings only; null for anything else. Case matters for the lone T (tablespoon) and t (teaspoon). */
 function lookupUnit(raw: string): string | null {
-  const trimmed = raw.trim()
+  const trimmed = raw.trim().replace(/\.+$/, '')
   if (trimmed === 'T') return 'tbsp'
   if (trimmed === 't') return 'tsp'
   const key = cleanKey(trimmed)
@@ -188,7 +188,8 @@ export function normalizeUnit(unit: string | null | undefined): string | null {
   if (raw === '') return null
   const known = lookupUnit(raw)
   if (known !== null) return known
-  return singularize(cleanKey(raw))
+  const fallback = singularize(cleanKey(raw))
+  return fallback === '' ? null : fallback
 }
 
 export function unitDimension(unit: string | null): Dimension {
@@ -274,10 +275,17 @@ function formatDecimal(abs: number): string {
   return abs.toFixed(2).replace(/\.?0+$/, '')
 }
 
-function formatAmount(amount: number, allowFractions: boolean): string {
-  if (!Number.isFinite(amount)) return ''
+interface RenderedAmount {
+  text: string
+  /** The number the text actually shows (1.001 renders as "1", so 1), used to pick singular or plural. */
+  value: number
+}
+
+function formatAmount(amount: number, allowFractions: boolean): RenderedAmount {
+  if (!Number.isFinite(amount)) return { text: '', value: amount }
   const sign = amount < 0 ? '-' : ''
   const abs = Math.abs(amount)
+  const signed = (v: number): number => (amount < 0 ? -v : v)
   if (allowFractions) {
     let whole = Math.floor(abs)
     let frac = abs - whole
@@ -286,13 +294,16 @@ function formatAmount(amount: number, allowFractions: boolean): string {
       frac = 0
     }
     if (frac < FRACTION_TOLERANCE) {
-      if (whole > 0 || abs === 0) return `${sign}${whole}`
+      if (whole > 0 || abs === 0) return { text: `${sign}${whole}`, value: signed(whole) }
     } else {
       const match = FRACTIONS.find(([value]) => Math.abs(frac - value) <= FRACTION_TOLERANCE)
-      if (match !== undefined) return whole > 0 ? `${sign}${whole} ${match[1]}` : `${sign}${match[1]}`
+      if (match !== undefined) {
+        return { text: whole > 0 ? `${sign}${whole} ${match[1]}` : `${sign}${match[1]}`, value: signed(whole + match[0]) }
+      }
     }
   }
-  return `${sign}${formatDecimal(abs)}`
+  const text = formatDecimal(abs)
+  return { text: `${sign}${text}`, value: signed(Number(text)) }
 }
 
 /** The unit word for an amount: singular for amounts up to 1 ("1/2 cup", "1 can"), plural above ("2 cups"). */
@@ -309,9 +320,9 @@ export function formatQuantity(q: Quantity): string {
   const unit = normalizeUnit(q.unit)
   const def = unit === null ? undefined : UNITS[unit]
   const allowFractions = def === undefined ? true : def.fractions
-  const amountText = formatAmount(q.amount, allowFractions)
-  if (unit === null) return amountText
-  return `${amountText} ${unitLabel(unit, q.amount)}`
+  const rendered = formatAmount(q.amount, allowFractions)
+  if (unit === null) return rendered.text
+  return `${rendered.text} ${unitLabel(unit, rendered.value)}`
 }
 
 /* ------------------------------------------------------------------------------------------------
@@ -383,8 +394,8 @@ function parseBareNumber(s: string): NumberMatch | null {
     const den = Number(m[2])
     if (den > 0) return { value: tidy(Number(m[1]) / den), end: m[0].length }
   }
-  // 1½, ½
-  m = /^(\d+)?([½⅓⅔¼¾⅛⅜⅝⅞])/.exec(s)
+  // 1½, 1 ½, ½
+  m = /^(?:(\d+) ?)?([½⅓⅔¼¾⅛⅜⅝⅞])/.exec(s)
   if (m !== null) {
     const whole = m[1] !== undefined ? Number(m[1]) : 0
     return { value: tidy(whole + (UNICODE_FRACTIONS[m[2] ?? ''] ?? 0)), end: m[0].length }
@@ -403,8 +414,8 @@ function parseBareNumber(s: string): NumberMatch | null {
   let end = m[0].length
   const after = s.slice(end)
   if (word === 'a' || word === 'an') {
-    // "a few eggs", "a lot of rice": no number here
-    if (/^ (few|little|lot|bit|bunch of)(?=\s|$)/i.test(after)) return null
+    // "a few eggs", "a lot of rice": no number here ("a bunch of cilantro" is one bunch, since bunch is a unit)
+    if (/^ (few|little|lot|bit)(?=\s|$)/i.test(after)) return null
     // "a half cup"
     const half = /^ half(?=\s|$)/i.exec(after)
     if (half !== null) return { value: 0.5, end: end + half[0].length }

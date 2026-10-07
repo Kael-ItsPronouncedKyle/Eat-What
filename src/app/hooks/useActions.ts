@@ -17,7 +17,7 @@ export function useUndoable() {
   const actor = useActor()
   const { show } = useUndo()
   const run = useCallback(
-    async (fn: (repo: ReturnType<typeof useRepo>, actor: Actor) => Promise<Undoable>, message?: string) => {
+    async <T extends Undoable>(fn: (repo: ReturnType<typeof useRepo>, actor: Actor) => Promise<T>, message?: string): Promise<T> => {
       const result = await fn(repo, actor)
       show(message ?? result.event.summary, result.undo)
       return result
