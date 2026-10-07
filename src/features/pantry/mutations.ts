@@ -1,8 +1,9 @@
-import type { FreezerBlock, Item, ItemAlias, ItemCategory, TrackMode } from '@/domain/types'
+import type { FreezerBlock, Item, ItemAlias, ItemCategory, Receipt, Spend, TrackMode } from '@/domain/types'
 import { newId } from '@/domain/ids'
 import { canonicalName } from '@/domain/names'
-import { defaultUseBy, deriveStatus } from '@/domain/status'
-import { deleteRow, insertRow, replaceRow, type Actor, type Undoable } from '@/data/mutations'
+import { applyDelta, defaultUseBy, deriveStatus } from '@/domain/status'
+import { planReceiptSave, receiptSummary, type ReceiptMatch } from '@/domain/receipts'
+import { deleteRow, insertRow, logEvent, replaceRow, type Actor, type Undoable } from '@/data/mutations'
 import { nowIso, type Repository } from '@/data/repository'
 
 export interface NewItemInput {
@@ -99,4 +100,73 @@ export async function addBlock(repo: Repository, block: FreezerBlock, actor: Act
 
 export async function removeBlock(repo: Repository, block: FreezerBlock, actor: Actor): Promise<Undoable> {
   return deleteRow(repo, 'freezer_blocks', block, actor, `Removed ${block.title} from the freezer`)
+}
+
+/* ---- Receipts: one Save writes the receipt, its lines, prices, a spend row and the restocks, with one undo ---- */
+
+export interface SaveReceiptInput {
+  householdId: string
+  retailerId: string | null
+  retailerName: string | null
+  /** YYYY-MM-DD, from the receipt when read, else today from the caller. */
+  purchasedOn: string
+  totalCents: number | null
+  storagePath: string | null
+  lines: ReceiptMatch[]
+  items: Item[]
+  rawResult?: unknown
+}
+
+export async function saveReceipt(repo: Repository, input: SaveReceiptInput, actor: Actor): Promise<Undoable & { receipt: Receipt; pricesWritten: number }> {
+  const now = nowIso()
+  const receiptId = newId()
+  const plan = planReceiptSave({ householdId: input.householdId, receiptId, retailerId: input.retailerId, purchasedOn: input.purchasedOn, totalCents: input.totalCents, lines: input.lines, items: input.items, newId, now, userId: actor.userId })
+  const receipt: Receipt = {
+    id: receiptId,
+    householdId: input.householdId,
+    createdAt: now,
+    createdBy: actor.userId,
+    updatedAt: now,
+    updatedBy: actor.userId,
+    deletedAt: null,
+    retailerId: input.retailerId,
+    uploadedBy: actor.userId,
+    storagePath: input.storagePath,
+    purchasedOn: input.purchasedOn,
+    totalCents: plan.spendCents,
+    status: 'reviewed',
+    rawResult: input.rawResult ?? null,
+    listSendId: null,
+  }
+  const spend: Spend | null =
+    plan.spendCents > 0
+      ? { id: newId(), householdId: input.householdId, createdAt: now, createdBy: actor.userId, updatedAt: now, updatedBy: actor.userId, deletedAt: null, retailerId: input.retailerId, amountCents: plan.spendCents, kind: 'actual', category: 'groceries', occurredOn: input.purchasedOn, listSendId: null, receiptId, note: `Receipt${input.retailerName ? ` from ${input.retailerName}` : ''}` }
+      : null
+  const beforeItems: Item[] = [...plan.restocks.map((r) => ({ ...r.item })), ...plan.markOk.map((i) => ({ ...i }))]
+  const afterItems: Item[] = [
+    ...plan.restocks.map((r) => ({ ...applyDelta(r.item, r.add), updatedAt: now, updatedBy: actor.userId })),
+    ...plan.markOk.map((i) => ({ ...i, status: 'ok' as const, updatedAt: now, updatedBy: actor.userId })),
+  ]
+
+  await repo.table('receipts').put(receipt)
+  if (plan.receiptLines.length) await repo.table('receipt_lines').putMany(plan.receiptLines)
+  if (plan.prices.length) await repo.table('prices').putMany(plan.prices)
+  if (spend) await repo.table('spend').put(spend)
+  if (afterItems.length) await repo.table('items').putMany(afterItems)
+  const summary = receiptSummary(plan, input.retailerName)
+  const event = await logEvent(repo, input.householdId, { ...actor, source: actor.source ?? 'receipt' }, { entityType: 'receipts', entityId: receipt.id, action: 'insert', summary, after: receipt })
+  return {
+    receipt,
+    pricesWritten: plan.prices.length,
+    event,
+    undo: async () => {
+      if (beforeItems.length) await repo.table('items').putMany(beforeItems)
+      if (spend) await repo.table('spend').remove(spend.id)
+      for (const p of plan.prices) await repo.table('prices').remove(p.id)
+      for (const l of plan.receiptLines) await repo.table('receipt_lines').remove(l.id)
+      await repo.table('receipts').remove(receipt.id)
+      const undo = await logEvent(repo, input.householdId, actor, { entityType: 'receipts', entityId: receipt.id, action: 'undo', summary: `Undid: ${summary}`, undoOfEventId: event.id })
+      await repo.table('activity_events').patch(event.id, { undoneByEventId: undo.id })
+    },
+  }
 }

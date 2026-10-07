@@ -1,20 +1,21 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
-import type { Batch, ContainerPlanLine, CookWeek, TimelineDay } from '@/domain/types'
-import { containerAvailability, planContainers, portionLabel, recipeYieldMl, suggestContainerPlan } from '@/domain/containers'
+import type { Batch, ContainerPlanLine, CookWeek, TimelineEntryKind } from '@/domain/types'
+import { capacityText, containerAvailability, planContainers, portionLabel, recipeYieldMl, suggestContainerPlan } from '@/domain/containers'
 import { addDays, formatDate, today as todayKey } from '@/domain/dates'
 import { recipeAvailability } from '@/domain/matching'
 import { costPerServingCents } from '@/domain/budget'
 import { formatCents } from '@/domain/money'
-import { standingMinutes } from '@/domain/effort'
+import { buildTimeline, SHOP_LINK_TEXT } from '@/domain/cookweek'
 import { labelText, guessFoodType, qualityUntil } from '@/domain/labels'
 import { BackHeader } from '@/app/Shell'
 import { useHouseholdData } from '@/app/hooks/useHouseholdData'
 import { useUndoable } from '@/app/hooks/useActions'
 import { useToday } from '@/app/hooks/useToday'
 import { useSession } from '@/app/session'
-import { copyText, printText } from '@/integrations/share'
+import { copyText } from '@/integrations/share'
 import { Badge, Button, Card, EmptyState, Icon, SelectField, Sheet, Stepper, TextField } from '@/design/components'
+import type { IconName } from '@/design/components/Icon'
 import { addBatch, addCookWeek, removeBatch, updateBatch, updateCookWeek } from './mutations'
 
 /** Cook-week builder: batches with container math, availability warnings, a day-by-day timeline, labels, and a printable plan. */
@@ -29,7 +30,6 @@ export function CookWeekBuilder() {
   const weeks = data.cook_weeks.filter((w) => w.status !== 'done').sort((a, b) => b.startsOn.localeCompare(a.startsOn))
   const week = id ? (data.cook_weeks.find((w) => w.id === id) ?? null) : (weeks[0] ?? null)
   const batches = useMemo(() => data.batches.filter((b) => week && b.cookWeekId === week.id), [data.batches, week])
-  const recipeOf = (b: Batch) => data.recipesWithIngredients.find((r) => r.id === b.recipeId) ?? null
 
   const startWeek = async () => {
     if (!household) return
@@ -39,48 +39,11 @@ export function CookWeekBuilder() {
   }
 
   const estimated = batches.reduce<number | null>((acc, b) => (acc === null || b.estimatedCostCents === null ? (acc === null && b.estimatedCostCents !== null ? b.estimatedCostCents : acc) : acc + b.estimatedCostCents), null)
-  const byDay = useMemo(() => {
-    const map = new Map<string, Batch[]>()
-    for (const b of batches) map.set(b.scheduledOn ?? 'unscheduled', [...(map.get(b.scheduledOn ?? 'unscheduled') ?? []), b])
-    return [...map.entries()].sort(([a], [b]) => a.localeCompare(b))
-  }, [batches])
-
-  const timeline = useMemo<TimelineDay[]>(() => {
-    const maxStanding = (data.rules.find((r) => r.type === 'prep' && r.active)?.payload as { maxStandingMinutes?: number } | undefined)?.maxStandingMinutes ?? 20
-    return byDay.filter(([d]) => d !== 'unscheduled').map(([date, bs]) => {
-      const entries: TimelineDay['entries'] = []
-      for (const b of bs) {
-        const r = recipeOf(b)
-        if (!r) continue
-        const standing = Math.round(standingMinutes(r) * Math.max(1, Math.sqrt(b.multiplier)))
-        entries.push({ kind: 'batch', batchId: b.id, text: `${r.title} ×${b.multiplier}${b.kind === 'dump_kit' ? ' (assemble, no cook)' : ''}`, minutes: r.totalMinutes ?? undefined })
-        if (standing > maxStanding) entries.push({ kind: 'sit', text: `Sit for 10 minutes after the prep. ${standing} minutes standing is over your ${maxStanding} minute limit; split the batch across the day.`, minutes: 10 })
-        else entries.push({ kind: 'sit', text: `About ${standing} minutes standing. Sit while it cooks.`, minutes: 0 })
-        for (const line of b.containerPlan) entries.push({ kind: 'prep', text: `Fill ${line.count} × ${line.portionLabel}` })
-      }
-      return { date, entries }
-    })
-  }, [byDay, data.rules, data.recipesWithIngredients]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const printPlan = () => {
-    if (!week) return
-    const lines: string[] = [week.name, '']
-    for (const day of timeline) {
-      lines.push(formatDate(day.date, 'long'))
-      for (const e of day.entries) lines.push(`  ${e.kind === 'sit' ? '(sit) ' : '- '}${e.text}`)
-      lines.push('')
-    }
-    lines.push('Labels')
-    for (const b of batches) {
-      const r = recipeOf(b)
-      if (!r) continue
-      for (const line of b.containerPlan) {
-        const c = data.containers.find((x) => x.id === line.containerId) ?? null
-        lines.push(`  ${labelText({ title: r.title, portionLabel: line.portionLabel, servingsPerBlock: line.portionMl >= 480 ? 2 : 1, cookedOn: b.scheduledOn ?? today, qualityUntil: qualityUntil(b.scheduledOn ?? today, guessFoodType(r)), foodType: guessFoodType(r) }, { recipe: r, container: c, format: 'tape' })} × ${line.count}`)
-      }
-    }
-    printText(week.name, lines.join('\n'))
-  }
+  const timeline = useMemo(() => {
+    if (!week) return []
+    const maxStandingMinutes = (data.rules.find((r) => r.type === 'prep' && r.active)?.payload as { maxStandingMinutes?: number } | undefined)?.maxStandingMinutes
+    return buildTimeline(week, batches, data.recipesWithIngredients, data.containers, data.freezer_blocks, { items: data.items, aliases: data.item_aliases, locations: data.locations, maxStandingMinutes })
+  }, [week, batches, data.recipesWithIngredients, data.containers, data.freezer_blocks, data.items, data.item_aliases, data.locations, data.rules])
 
   if (data.loading) return <div className="page" aria-busy="true" />
   if (!week) {
@@ -95,7 +58,7 @@ export function CookWeekBuilder() {
 
   return (
     <div className="page">
-      <BackHeader title={week.name} to="/cook/plan" right={<Button variant="ghost" icon="print" onClick={printPlan} aria-label="Print the plan">Print</Button>} />
+      <BackHeader title={week.name} to="/cook/plan" right={<Link to={`/print/week/${week.id}`} className="btn btn-ghost" aria-label="Print the plan"><Icon name="print" /> <span className="btn-label">Print</span></Link>} />
       <div className="row-wrap" style={{ marginBottom: 'var(--space-3)' }}>
         <Badge>{formatDate(week.startsOn)} to {formatDate(week.endsOn)}</Badge>
         <Badge tone={week.status === 'confirmed' ? 'ok' : 'low'}>{week.status}</Badge>
@@ -115,7 +78,7 @@ export function CookWeekBuilder() {
         <Card tone="low" style={{ marginTop: 'var(--space-4)' }}>
           <strong>Containers are tight.</strong>
           <ul className="small" style={{ marginTop: 6 }}>
-            {avail.filter((a) => a.short > 0).map((a) => <li key={a.container.id}>{a.container.name}: need {a.needed}, own {a.owned}. {a.container.disposable ? 'Add a box to the list.' : 'Freeze, pop out, refill.'}</li>)}
+            {avail.filter((a) => a.short > 0).map((a) => <li key={a.container.id}>{a.container.name}: need {a.needed} blocks, fit {a.cavities > 1 ? `${a.trays} ${a.trays === 1 ? 'tray' : 'trays'} x ${a.cavities} cavities = ${a.owned}` : a.owned} at once. {a.container.disposable ? 'Add a box to the list.' : 'Freeze, pop out, refill.'}</li>)}
           </ul>
         </Card>
       ) : null}
@@ -127,9 +90,12 @@ export function CookWeekBuilder() {
             <div key={d.date} className="timeline-day">
               <h4>{formatDate(d.date, 'long')}</h4>
               {d.entries.map((e, i) => (
-                <div key={i} className={`timeline-entry ${e.kind === 'sit' ? 'is-sit' : ''}`}>
-                  <Icon name={e.kind === 'sit' ? 'chair' : e.kind === 'batch' ? 'cook' : 'snowflake'} size="1em" />
-                  <span>{e.text}</span>
+                <div key={i} className={`timeline-entry timeline-${e.kind} ${e.kind === 'sit' ? 'is-sit' : ''}`}>
+                  <Icon name={TIMELINE_ICON[e.kind]} size="1em" title={TIMELINE_LABEL[e.kind]} />
+                  <span>
+                    {e.kind === 'shop' ? <>{e.text.replace(`${SHOP_LINK_TEXT}.`, '').trim()} <Link to="/shop">{SHOP_LINK_TEXT}</Link></> : e.text}
+                    {e.kind === 'batch' && e.minutes ? <span className="small muted"> · {e.minutes} min</span> : null}
+                  </span>
                 </div>
               ))}
             </div>
@@ -148,6 +114,10 @@ export function CookWeekBuilder() {
     </div>
   )
 }
+
+/** One icon per timeline row kind (names from src/design/components/Icon.tsx). */
+const TIMELINE_ICON: Record<TimelineEntryKind, IconName> = { shop: 'cart', thaw: 'snowflake', note: 'info', batch: 'cook', sit: 'chair', prep: 'snowflake', label: 'edit', pop: 'bag', refill: 'swap' }
+const TIMELINE_LABEL: Record<TimelineEntryKind, string> = { shop: 'Shop', thaw: 'Thaw', note: 'Note', batch: 'Cook', sit: 'Sit', prep: 'Fill', label: 'Label', pop: 'Pop out', refill: 'Refill' }
 
 function BatchCard({ batch, week }: { batch: Batch; week: CookWeek }) {
   const data = useHouseholdData()
@@ -255,7 +225,7 @@ function AddBatchSheet({ week, onClose }: { week: CookWeek; onClose: () => void 
               const t = targets.find((x) => x.containerId === c.id)
               return (
                 <div key={c.id} className="spread">
-                  <span>{c.name} <span className="small muted">({portionLabel(c.capacityMl, c)}, own {c.countOwned})</span></span>
+                  <span>{c.name} <span className="small muted">({portionLabel(c.capacityMl, c)}, {capacityText(c)})</span></span>
                   <Stepper label={c.name} value={t?.count ?? 0} onChange={(n) => setTargets([...targets.filter((x) => x.containerId !== c.id), ...(n > 0 ? [{ containerId: c.id, count: Math.round(n) }] : [])])} />
                 </div>
               )

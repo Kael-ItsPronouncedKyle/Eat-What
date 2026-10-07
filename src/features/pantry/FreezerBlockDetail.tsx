@@ -92,9 +92,21 @@ export function FreezerBlockDetail() {
               <strong>Reheat:</strong> {reheat}
             </p>
           ) : null}
-          <Button variant="primary" size="lg" full icon="check" disabled={block.countRemaining === 0} onClick={() => void run((repo, actor) => eatFreezerBlock(repo, block, actor))}>
-            Eat 1
-          </Button>
+          {block.foodType === 'raw_marinated' && recipe ? (
+            <div className="grid-2">
+              <Button variant="primary" size="lg" full icon="cook" disabled={block.countRemaining === 0} onClick={() => navigate(`/cook/mode/${recipe.id}?block=${block.id}`)} aria-label={`Cook 1 ${block.title}`}>
+                Cook 1
+              </Button>
+              <Button variant="secondary" size="lg" full icon="check" disabled={block.countRemaining === 0} onClick={() => void run((repo, actor) => eatFreezerBlock(repo, block, actor))} aria-label={`Eat 1 ${block.title}`}>
+                Eat 1
+              </Button>
+            </div>
+          ) : (
+            <Button variant="primary" size="lg" full icon="check" disabled={block.countRemaining === 0} onClick={() => void run((repo, actor) => eatFreezerBlock(repo, block, actor))} aria-label={`Eat 1 ${block.title}`}>
+              Eat 1
+            </Button>
+          )}
+          {block.foodType === 'raw_marinated' && recipe ? <p className="small muted">Cook 1 opens the cook-day steps and takes one kit off this shelf when you log it.</p> : null}
           {recipe ? (
             <Button variant="secondary" size="md" full icon="cook" onClick={() => navigate(`/cook/recipe/${recipe.id}`)}>
               Open the recipe

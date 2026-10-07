@@ -7,9 +7,12 @@ export interface OutboxOp {
   householdId: string | null
   table: TableName
   rowId: string
-  kind: 'put' | 'patch' | 'softDelete' | 'remove'
+  /** 'delta' carries { field, delta, base }: base is the mirrored value when the op was queued. */
+  kind: 'put' | 'patch' | 'softDelete' | 'remove' | 'delta'
   payload: unknown
   createdAt: string
+  /** Monotonic within this browser; breaks createdAt ties so ops replay in the order they were made. */
+  seq?: number
   attempts: number
   lastError: string | null
 }
@@ -45,6 +48,7 @@ export class QmDatabase extends Dexie {
   activity_events!: Table<TableMap['activity_events'], string>
   invites!: Table<TableMap['invites'], string>
   notification_prefs!: Table<TableMap['notification_prefs'], string>
+  push_subscriptions!: Table<TableMap['push_subscriptions'], string>
   meta!: Table<{ key: string; value: unknown }, string>
   outbox!: Table<OutboxOp, string>
 
@@ -83,6 +87,8 @@ export class QmDatabase extends Dexie {
       meta: 'key',
     })
     this.version(2).stores({ outbox: 'id, householdId, createdAt' })
+    // Web Push subscriptions belong to a user, not a household, so they index by userId and endpoint.
+    this.version(3).stores({ push_subscriptions: 'id, userId, endpoint' })
   }
 
   store<K extends TableName>(name: K): Table<TableMap[K], string> {

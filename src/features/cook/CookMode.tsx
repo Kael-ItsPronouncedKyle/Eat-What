@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router'
-import type { Deduction, FreezerBlock, TenantRow } from '@/domain/types'
+import type { Deduction, FreezerBlock, StepPhase, TenantRow } from '@/domain/types'
 import { recipeAvailability } from '@/domain/matching'
 import { applySubstitutions } from '@/domain/rules'
 import { convert, formatQuantity, normalizeUnit } from '@/domain/units'
 import { guessFoodType, qualityUntil } from '@/domain/labels'
 import { portionLabel } from '@/domain/containers'
+import { hasAssemblePhase, stepsForPhase } from '@/domain/steps'
 import { useHouseholdData } from '@/app/hooks/useHouseholdData'
 import { useUndoable } from '@/app/hooks/useActions'
 import { useToday } from '@/app/hooks/useToday'
@@ -32,6 +33,9 @@ export function CookMode() {
   const { prefs } = usePrefs()
   const recipe = data.recipesWithIngredients.find((r) => r.id === recipeId) ?? null
   const batch = data.batches.find((b) => b.id === params.get('batch')) ?? null
+  // Cook 1 on a raw dump-kit block opens the cook-phase steps; a dump-kit batch from the cook week walks only the assemble steps.
+  const fromBlock = data.freezer_blocks.find((b) => b.id === params.get('block')) ?? null
+  const phase: StepPhase | null = fromBlock ? 'cook' : batch?.kind === 'dump_kit' ? 'assemble' : null
   const planEntry = data.plan_entries.find((e) => e.recipeId === recipeId && e.date === today && e.status === 'planned') ?? null
   const servings = Number(params.get('servings')) || (batch && recipe ? recipe.baseYield * batch.multiplier : recipe?.baseYield ?? 4)
   const scale = recipe ? servings / recipe.baseYield : 1
@@ -41,11 +45,18 @@ export function CookMode() {
   const ruleCtx = useMemo(() => ({ rules: data.rules, persons: data.persons }), [data.rules, data.persons])
   const maxStanding = (data.rules.find((r) => r.type === 'prep' && r.active)?.payload as { maxStandingMinutes?: number } | undefined)?.maxStandingMinutes ?? null
 
+  const phaseSteps = useMemo(() => {
+    if (!recipe) return []
+    // A recipe with no assemble steps has nothing to split, so the batch walks every step.
+    if (phase === 'assemble' && !hasAssemblePhase(recipe.steps)) return recipe.steps
+    return phase ? stepsForPhase(recipe.steps, phase) : recipe.steps
+  }, [recipe, phase])
+
   const steps = useMemo<StepView[]>(() => {
     if (!recipe) return []
     const out: StepView[] = []
     let standingRun = 0
-    recipe.steps.forEach((s, index) => {
+    phaseSteps.forEach((s, index) => {
       const standing = s.standingMinutes ?? Math.round((s.minutes ?? 0) * 0.5)
       standingRun += standing
       const forcedSit = maxStanding !== null && standingRun > maxStanding
@@ -57,7 +68,7 @@ export function CookMode() {
     })
     if (out.length === 0) out.push({ text: 'No steps written yet. Cook it your way, then tap Done to log it.', sit: false, timerMinutes: null, index: 0 })
     return out
-  }, [recipe, maxStanding])
+  }, [recipe, phaseSteps, maxStanding])
 
   const step = steps[Math.min(i, steps.length - 1)] ?? null
   const stepRef = useRef(step)
@@ -127,13 +138,13 @@ export function CookMode() {
         <IconButton variant="bar" icon="close" label="Leave cook mode" onClick={() => navigate(-1)} />
         <div className="grow" style={{ minWidth: 0 }}>
           <div className="truncate" style={{ fontFamily: 'var(--font-display)', fontWeight: 600 }}>{recipe.title}</div>
-          <div className="cookmode-progress" aria-label={`Step ${step.index + 1} of ${recipe.steps.length}`}><div style={{ width: `${((i + 1) / steps.length) * 100}%` }} /></div>
+          <div className="cookmode-progress" aria-label={`Step ${step.index + 1} of ${phaseSteps.length}`}><div style={{ width: `${((i + 1) / steps.length) * 100}%` }} /></div>
         </div>
         {voiceAvailable ? <IconButton variant="bar" icon="mic" active={listening} label={listening ? 'Stop listening' : 'Listen for next and back'} onClick={toggleVoice} /> : null}
       </div>
       <div className="cookmode-body" aria-live="polite">
         {step.sit ? <div className="cookmode-sit"><Icon name="chair" size="1.6em" /> Sit here.</div> : null}
-        <div className="small muted" style={{ marginBottom: 8 }}>{step.sit ? 'Break' : `Step ${step.index + 1} of ${recipe.steps.length}`} · {servings} {recipe.yieldUnit}</div>
+        <div className="small muted" style={{ marginBottom: 8 }}>{step.sit ? 'Break' : `Step ${step.index + 1} of ${phaseSteps.length}`} · {servings} {recipe.yieldUnit}{phase === 'assemble' ? ' · Bag it up, cook later' : phase === 'cook' ? ' · From the freezer' : ''}</div>
         <p className="cookmode-step">{step.text}</p>
         {step.timerMinutes || timerRequest ? <Timer key={`${i}-${timerRequest}`} minutes={timerRequest ?? step.timerMinutes!} onClear={() => setTimerRequest(null)} /> : null}
         <details className="cookmode-ingredients">
@@ -156,13 +167,13 @@ export function CookMode() {
       <div className="cookmode-footer">
         <Button size="lg" icon="chevronLeft" onClick={back} disabled={i === 0} aria-label="Back">Back</Button>
         {last ? (
-          <Button variant="primary" size="lg" icon="check" onClick={() => setFinishing(true)}>Done cooking</Button>
+          <Button variant="primary" size="lg" icon="check" onClick={() => setFinishing(true)}>{phase === 'assemble' ? 'Done bagging' : 'Done cooking'}</Button>
         ) : (
           <Button variant="primary" size="lg" iconRight="chevronRight" onClick={next}>Next</Button>
         )}
       </div>
       {finishing && household ? (
-        <FinishSheet recipeId={recipe.id} servings={servings} scale={scale} batchId={batch?.id ?? null} planEntryId={planEntry?.id ?? null} onClose={() => setFinishing(false)} onDone={() => { setFinishing(false); navigate(batch ? '/cook/week' : '/pantry/freezer') }} />
+        <FinishSheet recipeId={recipe.id} servings={servings} scale={scale} batchId={batch?.id ?? null} planEntryId={planEntry?.id ?? null} phase={phase} fromBlockId={fromBlock?.id ?? null} onClose={() => setFinishing(false)} onDone={() => { setFinishing(false); navigate(batch ? '/cook/week' : '/pantry/freezer') }} />
       ) : null}
     </div>
   )
@@ -204,8 +215,10 @@ function Timer({ minutes, onClear }: { minutes: number; onClear: () => void }) {
   )
 }
 
-/** End of cook: how many portions went in, which container, where they sit, who they're for; then the depletion confirm. */
-function FinishSheet({ recipeId, servings, scale, batchId, planEntryId, onClose, onDone }: { recipeId: string; servings: number; scale: number; batchId: string | null; planEntryId: string | null; onClose: () => void; onDone: () => void }) {
+/** End of cook: how many portions went in, which container, where they sit, who they're for; then the depletion confirm.
+    A dump-kit batch (phase 'assemble') writes raw kits instead of cooked blocks. Cook 1 from a raw block (fromBlockId) takes one off that block
+    and offers no new blocks by default; the ingredients were already in the bag, so nothing comes off the pantry. */
+function FinishSheet({ recipeId, servings, scale, batchId, planEntryId, phase, fromBlockId, onClose, onDone }: { recipeId: string; servings: number; scale: number; batchId: string | null; planEntryId: string | null; phase: StepPhase | null; fromBlockId: string | null; onClose: () => void; onDone: () => void }) {
   const data = useHouseholdData()
   const today = useToday()
   const { household } = useSession()
@@ -213,14 +226,16 @@ function FinishSheet({ recipeId, servings, scale, batchId, planEntryId, onClose,
   const recipe = data.recipesWithIngredients.find((r) => r.id === recipeId)!
   const batch = data.batches.find((b) => b.id === batchId) ?? null
   const planEntry = data.plan_entries.find((e) => e.id === planEntryId) ?? null
-  const [freeze, setFreeze] = useState(!!batch)
+  const fromBlock = data.freezer_blocks.find((b) => b.id === fromBlockId) ?? null
+  const assembling = phase === 'assemble'
+  const [freeze, setFreeze] = useState(!!batch && !fromBlock)
   const [lines, setLines] = useState<{ containerId: string; count: number }[]>(() => (batch ? batch.containerPlan.map((l) => ({ containerId: l.containerId, count: l.count })) : []))
   const [spot, setSpot] = useState('')
   const [personId, setPersonId] = useState('')
   const [madeServings, setMadeServings] = useState(Math.round(servings))
   const availability = useMemo(() => recipeAvailability(recipe, { items: data.items, aliases: data.item_aliases, alwaysHave: data.alwaysHave }, today, scale), [recipe, data.items, data.item_aliases, data.alwaysHave, today, scale])
   const [deductions, setDeductions] = useState<Deduction[]>(() =>
-    availability.ingredients
+    (fromBlock ? [] : availability.ingredients)
       .filter((a) => a.item)
       .map((a) => {
         const item = a.item!
@@ -247,7 +262,7 @@ function FinishSheet({ recipeId, servings, scale, batchId, planEntryId, onClose,
 
   const save = async () => {
     if (!household) return
-    const foodType = guessFoodType(recipe)
+    const foodType = assembling ? 'raw_marinated' : guessFoodType(recipe)
     const blocks: Omit<FreezerBlock, keyof TenantRow>[] = freeze
       ? lines
           .filter((l) => l.count > 0)
@@ -275,15 +290,21 @@ function FinishSheet({ recipeId, servings, scale, batchId, planEntryId, onClose,
             }
           })
       : []
-    await run((repo, actor) => finishCook(repo, household.id, { recipe, session: null, planEntry, batch, servingsMade: madeServings, deductions, items: data.items, blocks }, actor))
+    await run((repo, actor) => finishCook(repo, household.id, { recipe, session: null, planEntry, batch, servingsMade: madeServings, deductions, items: data.items, blocks, fromBlock, assembled: assembling }, actor))
     onDone()
   }
 
   return (
-    <Sheet open title="Done cooking" onClose={onClose} description="Say what went in the freezer, then confirm what came out of the pantry." footer={<Button variant="primary" size="lg" full icon="check" onClick={() => void save()}>Log it</Button>}>
+    <Sheet
+      open
+      title={assembling ? 'Bagged up' : 'Done cooking'}
+      onClose={onClose}
+      description={assembling ? 'Say how many raw kits went in the freezer, then confirm what came out of the pantry.' : fromBlock ? `One ${fromBlock.title} kit comes off the freezer shelf when you log it.` : 'Say what went in the freezer, then confirm what came out of the pantry.'}
+      footer={<Button variant="primary" size="lg" full icon="check" onClick={() => void save()}>Log it</Button>}
+    >
       <div className="stack-lg">
         <div className="spread"><span>Servings made</span><Stepper label="Servings made" value={madeServings} min={0} onChange={(n) => setMadeServings(Math.round(n))} /></div>
-        <Toggle label="Some of it went in the freezer" checked={freeze} onChange={setFreeze} />
+        <Toggle label={assembling ? 'The raw kits went in the freezer' : fromBlock ? 'Some leftovers went back in the freezer' : 'Some of it went in the freezer'} checked={freeze} onChange={setFreeze} />
         {freeze ? (
           <div className="stack">
             {data.containers.map((c) => {
@@ -306,8 +327,8 @@ function FinishSheet({ recipeId, servings, scale, batchId, planEntryId, onClose,
         ) : null}
         <div>
           <h3 style={{ marginBottom: 8 }}>From the pantry</h3>
-          <p className="small muted">Confirm, edit, or skip each line.</p>
-          {deductions.length === 0 ? <p className="muted small">No pantry items matched this recipe.</p> : null}
+          <p className="small muted">{fromBlock ? 'The ingredients were already in the bag, so nothing comes off the pantry.' : 'Confirm, edit, or skip each line.'}</p>
+          {deductions.length === 0 && !fromBlock ? <p className="muted small">No pantry items matched this recipe.</p> : null}
           {deductions.map((d, idx) => (
             <div key={d.ingredientId ?? idx} className="deduction-row">
               <div className="grow">

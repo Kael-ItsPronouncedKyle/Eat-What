@@ -47,7 +47,7 @@ export function block(title: string, o: Partial<FreezerBlock> = {}): FreezerBloc
 }
 
 export function container(name: string, kind: Container['kind'], capacityMl: number, countOwned: number, o: Partial<Container> = {}): Container {
-  return { ...row(), name, kind, capacityMl, countOwned, disposable: kind === 'bag', ovenSafe: kind === 'pan', microwaveSafe: kind === 'tub', sortOrder: 0, ...o }
+  return { ...row(), name, kind, capacityMl, countOwned, cavities: 1, disposable: kind === 'bag', ovenSafe: kind === 'pan', microwaveSafe: kind === 'tub', sortOrder: 0, ...o }
 }
 
 export function price(itemId: string, priceCents: number, o: Partial<Price> = {}): Price {

@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import type { NotificationType } from '@/domain/types'
 import { BackHeader } from '@/app/Shell'
 import { useSession } from '@/app/session'
@@ -5,7 +6,62 @@ import { useCollection, useRepo } from '@/data/provider'
 import { useUndoable } from '@/app/hooks/useActions'
 import { updateHousehold } from './mutations'
 import { newId } from '@/domain/ids'
+import { pushStatus, subscribe, unsubscribe, type PushStatus } from '@/integrations/push'
 import { Card, TextField, Toggle } from '@/design/components'
+
+const STATUS_TEXT: Record<PushStatus, string> = {
+  unsupported: 'Not supported in this browser. On an iPhone, add the app to the Home Screen first, then come back here.',
+  no_key: 'Push is not set up on this server yet.',
+  denied: 'Blocked. Allow notifications for this site in your browser settings, then flip this on.',
+  on: 'On. This phone will buzz for the kinds you pick below.',
+  off: 'Off. Flip it on and allow notifications when the browser asks.',
+}
+
+/** The one toggle that is per phone: a Web Push subscription stored in push_subscriptions. */
+function ThisPhoneCard({ localMode }: { localMode: boolean }) {
+  const { userId } = useSession()
+  const repo = useRepo()
+  const [status, setStatus] = useState<PushStatus | 'checking'>('checking')
+  const [busy, setBusy] = useState(false)
+  const [problem, setProblem] = useState<string | null>(null)
+
+  useEffect(() => {
+    let alive = true
+    void pushStatus().then((s) => {
+      if (alive) setStatus(s)
+    })
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  const canToggle = status === 'on' || status === 'off' || status === 'denied'
+  const toggle = async (on: boolean) => {
+    if (busy) return
+    setBusy(true)
+    setProblem(null)
+    try {
+      if (on) await subscribe(repo, userId)
+      else await unsubscribe(repo)
+      setStatus(await pushStatus())
+    } catch (e) {
+      setProblem(e instanceof Error ? e.message : 'Something went wrong. Try again.')
+      setStatus(await pushStatus())
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const hint = status === 'checking' ? 'Checking this phone...' : STATUS_TEXT[status]
+  return (
+    <Card>
+      <Toggle label="Notifications on this phone" hint={hint} checked={status === 'on'} onChange={(v) => void (canToggle ? toggle(v) : undefined)} />
+      <p className="muted small" role="status">
+        {problem ?? (localMode ? 'Local mode saves this phone on the device only. Push needs the online account.' : '')}
+      </p>
+    </Card>
+  )
+}
 
 const TYPES: { type: NotificationType; title: string; when: string; who: string }[] = [
   { type: 'low_out_daily', title: 'Item hit Low or Out', when: 'Batched, once a day at 5 pm', who: 'Editors and owner' },
@@ -41,8 +97,10 @@ export function Notifications() {
     <div className="page">
       <BackHeader title="Notifications" to="/house" />
       <p className="muted" style={{ marginBottom: 'var(--space-4)' }}>
-        Each one is a toggle for you. Push delivery arrives in Phase 3; your choices are saved now. Every notification opens the screen that fixes it.
+        Turn on this phone first, then pick which kinds you want. Every notification opens the screen that fixes it.
       </p>
+      <ThisPhoneCard localMode={repo.mode === 'local'} />
+      <h3 style={{ marginTop: 'var(--space-4)' }}>Which kinds</h3>
       <Card>
         {TYPES.map((t) => (
           <Toggle key={t.type} label={t.title} hint={`${t.when} · ${t.who}`} checked={enabled(t.type)} onChange={(v) => void setEnabled(t.type, v)} />

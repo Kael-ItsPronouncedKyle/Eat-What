@@ -1,5 +1,6 @@
 import type { Energy, Equipment, Nutrition, Person, Recipe, RecipeIngredient, Rule } from './types'
-import { canonicalName, containsIngredient } from './names'
+import { canonicalName } from './names'
+import { ingredientHasAllergen } from './allergens'
 
 export interface RuleContext {
   rules: Rule[]
@@ -38,7 +39,8 @@ type CuisinePayload = { cuisine?: string; weight?: 'liked' | 'tolerated' | 'avoi
 const activeRules = (ctx: RuleContext, type: Rule['type']) => ctx.rules.filter((r) => r.type === type && r.active && !r.deletedAt)
 const personName = (ctx: RuleContext, id: string | null) => (id ? (ctx.persons.find((p) => p.id === id)?.name ?? null) : null)
 
-/** Allergy rows that match the ingredients (by canonical containment), optionally for one person only. */
+/** Allergy rows that match the ingredients (whole-word canonical containment, with family aliases:
+    a "nuts" rule covers almonds; see allergens.ts), optionally for one person only. */
 export function allergyViolations(ingredients: RecipeIngredient[], ctx: RuleContext, personId?: string | null): AllergyViolation[] {
   const out: AllergyViolation[] = []
   const rules = activeRules(ctx, 'allergy').filter((r) => {
@@ -53,7 +55,7 @@ export function allergyViolations(ingredients: RecipeIngredient[], ctx: RuleCont
     for (const r of rules) {
       const payload = r.payload as AllergyPayload
       const needle = payload.ingredient!
-      if (containsIngredient(hay, needle) || containsIngredient(ing.ingredientName, needle)) {
+      if (ingredientHasAllergen(hay, needle) || ingredientHasAllergen(ing.ingredientName, needle)) {
         out.push({
           ingredient: ing,
           ruleId: r.id,

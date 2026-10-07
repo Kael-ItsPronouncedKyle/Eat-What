@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 import type { FreezerBlock } from '@/domain/types'
 import { daysBetween, formatDate } from '@/domain/dates'
 import { labelText } from '@/domain/labels'
@@ -53,6 +53,13 @@ export function FreezerShelf() {
       <p className="muted" style={{ marginBottom: 'var(--space-4)' }}>
         {total === 0 ? 'Nothing frozen right now.' : `${total} ${total === 1 ? 'block' : 'blocks'} ready. Oldest first, so nothing hides in the back.`}
       </p>
+      {blocks.length ? (
+        <div className="row-wrap" style={{ marginBottom: 'var(--space-3)' }}>
+          <Link to={`/print/labels?blocks=${blocks.filter((b) => b.countRemaining > 0).map((b) => b.id).join(',')}`} className="btn btn-secondary">
+            <Icon name="print" /> <span className="btn-label">Print labels</span>
+          </Link>
+        </div>
+      ) : null}
       <div className="row-wrap" style={{ marginBottom: 'var(--space-4)' }} role="group" aria-label="Sort">
         <Chip selected={sort === 'oldest'} onClick={() => setSort('oldest')}>Oldest first</Chip>
         <Chip selected={sort === 'spot'} onClick={() => setSort('spot')}>By spot</Chip>
@@ -82,8 +89,10 @@ export function FreezerShelf() {
   )
 }
 
+/** A raw dump-kit block gets Cook 1 beside Eat 1: it opens cook mode at the recipe's cook steps and takes one kit off the block when logged. */
 export function BlockCard({ block, today, onEat }: { block: FreezerBlock; today: string; onEat: () => void }) {
   const data = useHouseholdData()
+  const navigate = useNavigate()
   const person = data.persons.find((p) => p.id === block.personId) ?? null
   const recipe = data.recipes.find((r) => r.id === block.recipeId) ?? null
   const container = data.containers.find((c) => c.id === block.containerId) ?? null
@@ -117,9 +126,20 @@ export function BlockCard({ block, today, onEat }: { block: FreezerBlock; today:
           </div>
         </div>
       </div>
-      <Button variant="primary" size="lg" full icon="check" onClick={onEat} disabled={block.countRemaining === 0} aria-label={`Eat 1 ${block.title}`}>
-        Eat 1
-      </Button>
+      {block.foodType === 'raw_marinated' && recipe ? (
+        <div className="grid-2">
+          <Button variant="primary" size="lg" full icon="cook" onClick={() => navigate(`/cook/mode/${recipe.id}?block=${block.id}`)} disabled={block.countRemaining === 0} aria-label={`Cook 1 ${block.title}`}>
+            Cook 1
+          </Button>
+          <Button variant="secondary" size="lg" full icon="check" onClick={onEat} disabled={block.countRemaining === 0} aria-label={`Eat 1 ${block.title}`}>
+            Eat 1
+          </Button>
+        </div>
+      ) : (
+        <Button variant="primary" size="lg" full icon="check" onClick={onEat} disabled={block.countRemaining === 0} aria-label={`Eat 1 ${block.title}`}>
+          Eat 1
+        </Button>
+      )}
     </Card>
   )
 }

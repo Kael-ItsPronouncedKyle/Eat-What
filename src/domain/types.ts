@@ -152,7 +152,10 @@ export interface Container extends TenantRow {
   name: string
   kind: ContainerKind
   capacityMl: number
+  /** Trays, bags, tubs or jars owned. Capacity in blocks = countOwned * cavities. */
   countOwned: number
+  /** Portions one tray holds at once (a 2-cup Souper Cubes tray has 4). Bags, tubs and jars are 1. */
+  cavities: number
   disposable: boolean
   ovenSafe: boolean
   microwaveSafe: boolean
@@ -196,8 +199,13 @@ export interface ItemRetailerLink extends TenantRow {
   lastPriceCents: number | null
 }
 
+/** Dump kits split steps: 'assemble' happens on cook day into a raw bag, 'cook' happens later from the freezer. Absent means 'cook'. */
+export type StepPhase = 'assemble' | 'cook'
+
 export interface RecipeStep {
   text: string
+  /** Which phase this step belongs to; a step with no phase is a cook step. */
+  phase?: StepPhase
   /** Minutes this step takes. */
   minutes?: number
   /** Minutes of standing during the step; the rest counts as seated. */
@@ -288,9 +296,19 @@ export interface CookWeek extends TenantRow {
   timeline: TimelineDay[]
 }
 
+/** One row of a cook-week day. `shop` is the day before the first batch, `thaw` the evening before a batch that needs frozen meat, `label`, `pop` and `refill` follow a batch that fills trays. */
+export type TimelineEntryKind = 'shop' | 'thaw' | 'note' | 'batch' | 'sit' | 'prep' | 'label' | 'pop' | 'refill'
+
+export interface TimelineEntry {
+  kind: TimelineEntryKind
+  batchId?: Id
+  text: string
+  minutes?: number
+}
+
 export interface TimelineDay {
   date: string
-  entries: { kind: 'batch' | 'prep' | 'sit' | 'note'; batchId?: Id; text: string; minutes?: number }[]
+  entries: TimelineEntry[]
 }
 
 export interface ContainerPlanLine {
@@ -536,6 +554,19 @@ export interface NotificationPref {
 }
 export type NotificationType =
   | 'low_out_daily' | 'expiring_2_days' | 'expired' | 'weekly_shop' | 'cook_week_prep' | 'price_book_stale' | 'budget_80' | 'budget_100' | 'list_sent'
+
+/** One phone's Web Push subscription (per user, not per household). The notify function sends to these and drops the
+    ones the push service reports gone (404 or 410). */
+export interface PushSubscription {
+  id: Id
+  userId: Id
+  endpoint: string
+  p256dh: string
+  auth: string
+  userAgent: string | null
+  createdAt: string
+  lastSeenAt: string
+}
 
 /* ------------------------------------------------------------------------------------------------
    Partner intents (shared schema between the app, the edge function, and the Riker MCP server)

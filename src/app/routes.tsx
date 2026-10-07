@@ -7,6 +7,8 @@ import { CookPage } from '@/features/cook/CookPage'
 import { ShopPage } from '@/features/shop/ShopPage'
 import { HousePage } from '@/features/house/HousePage'
 import { Join } from '@/features/auth/Join'
+import { PrintLabels } from '@/features/print/PrintLabels'
+import { PrintWeek } from '@/features/print/PrintWeek'
 
 export const router = createBrowserRouter([
   {
@@ -22,4 +24,7 @@ export const router = createBrowserRouter([
       { path: 'join/:token', element: <Join /> },
     ],
   },
+  // Print screens render without the shell: paper preview on screen, paper only when printed.
+  { path: '/print/labels', element: <PrintLabels />, errorElement: <RouteError /> },
+  { path: '/print/week/:id', element: <PrintWeek />, errorElement: <RouteError /> },
 ])

@@ -10,14 +10,16 @@ export function tenantBase(householdId: string, userId: string | null = null): T
 }
 
 export function kitContainers(householdId: string, kit: Kit): Container[] {
-  const c = (name: string, kind: Container['kind'], capacityMl: number, countOwned: number, disposable: boolean, ovenSafe: boolean, microwaveSafe: boolean, sortOrder: number): Container => ({
-    ...tenantBase(householdId), name, kind, capacityMl, countOwned, disposable, ovenSafe, microwaveSafe, sortOrder,
+  // countOwned is trays (or bags, tubs, jars); cavities is portions per tray. Blocks at once = countOwned * cavities.
+  const c = (name: string, kind: Container['kind'], capacityMl: number, countOwned: number, disposable: boolean, ovenSafe: boolean, microwaveSafe: boolean, sortOrder: number, cavities = 1): Container => ({
+    ...tenantBase(householdId), name, kind, capacityMl, countOwned, cavities, disposable, ovenSafe, microwaveSafe, sortOrder,
   })
   if (kit === 'souper_cubes') {
+    // Denton owns 2 trays of 2-cup (4 cavities each), 2 trays of 1-cup (6 each), 1 tray of 1/2-cup (8).
     return [
-      c('Souper Cubes 2-cup', 'tray', 480, 8, false, false, false, 0),
-      c('Souper Cubes 1-cup', 'tray', 240, 8, false, false, false, 1),
-      c('Souper Cubes 1/2-cup', 'tray', 120, 6, false, false, false, 2),
+      c('Souper Cubes 2-cup', 'tray', 480, 2, false, false, false, 0, 4),
+      c('Souper Cubes 1-cup', 'tray', 240, 2, false, false, false, 1, 6),
+      c('Souper Cubes 1/2-cup', 'tray', 120, 1, false, false, false, 2, 8),
       c('Quart zip bag', 'bag', 950, 20, true, false, false, 3),
     ]
   }
@@ -25,7 +27,7 @@ export function kitContainers(householdId: string, kit: Kit): Container[] {
     return [
       c('Quart zip bag', 'bag', 950, 25, true, false, false, 0),
       c('Gallon zip bag', 'bag', 3800, 10, true, false, false, 1),
-      c('Muffin tin cup', 'muffin_tin', 90, 12, false, true, false, 2),
+      c('Muffin tin', 'muffin_tin', 90, 1, false, true, false, 2, 12),
       c('Saved tub', 'tub', 500, 6, false, false, true, 3),
     ]
   }

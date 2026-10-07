@@ -23,6 +23,8 @@ With no Supabase keys the app runs entirely in the browser (IndexedDB). Reset th
 
 Every table has row level security; a user sees only households they belong to. Roles: owner, editor, viewer, agent (for Riker).
 
+Push notifications (House > Notifications > "Notifications on this phone") need a VAPID key pair: run `npx web-push generate-vapid-keys` once, put the public key in `.env` as `VITE_VAPID_PUBLIC_KEY`, and set `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT` (a `mailto:` address) as secrets on the `notify` edge function (`supabase functions deploy notify`). The hourly `.github/workflows/notify.yml` calls it with the repository's `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`; it batches low/out at 5 pm, expiring and expired at 8 am, the weekly shop and stale-price reminders, the budget lines, and "list sent" rows queued by a database trigger, respecting quiet hours and each person's toggles. Without the key the phone toggle explains that push is not set up; in local mode the subscription is saved on the device only. See `supabase/functions/README.md`.
+
 ## What it looks like
 
 Phone-size captures of the seeded Denton household, from `scripts/screenshot.mjs` against `npm run preview`:

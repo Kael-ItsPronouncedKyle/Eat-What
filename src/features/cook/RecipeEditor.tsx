@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
-import type { Equipment, MealType, RecipeStep, RecipeTag } from '@/domain/types'
+import type { Equipment, MealType, RecipeStep, RecipeTag, StepPhase } from '@/domain/types'
+import { stepPhase } from '@/domain/steps'
 import { parseIngredientLine } from '@/domain/importers/neelix'
 import { BackHeader } from '@/app/Shell'
 import { useHouseholdData } from '@/app/hooks/useHouseholdData'
 import { useUndoable } from '@/app/hooks/useActions'
 import { useSession } from '@/app/session'
-import { Button, Chip, SelectField, TextArea, TextField, Toggle } from '@/design/components'
+import { Button, Chip, Segmented, SelectField, TextArea, TextField, Toggle } from '@/design/components'
 import { saveRecipe, type RecipeDraftIngredient } from './mutations'
 
 const TAGS: { value: RecipeTag; label: string }[] = [
@@ -34,6 +35,8 @@ export function RecipeEditor() {
   const [yieldUnit, setYieldUnit] = useState(existing?.yieldUnit ?? 'servings')
   const [ingredientsText, setIngredientsText] = useState(existing ? existing.ingredients.map((i) => `${i.amount ?? ''} ${i.unit ?? ''} ${i.ingredientName}${i.preparation ? `, ${i.preparation}` : ''}${i.optional ? ' (optional)' : ''}`.replace(/\s+/g, ' ').trim()).join('\n') : '')
   const [stepsText, setStepsText] = useState(existing ? existing.steps.map((s) => s.text).join('\n') : '')
+  // Phase per step, keyed by the step text so lines can move or be edited without losing the tag.
+  const [stepPhases, setStepPhases] = useState<Record<string, StepPhase>>(() => Object.fromEntries((existing?.steps ?? []).map((s) => [s.text.trim(), stepPhase(s)])))
   const [active, setActive] = useState(String(existing?.activeMinutes ?? ''))
   const [standing, setStanding] = useState(String(existing?.standingMinutes ?? ''))
   const [total, setTotal] = useState(String(existing?.totalMinutes ?? ''))
@@ -55,10 +58,12 @@ export function RecipeEditor() {
   })
   const steps: RecipeStep[] = stepsText.split(/\r?\n/).map((l) => l.trim()).filter(Boolean).map((text) => {
     const prev = existing?.steps.find((st) => st.text.trim() === text)
-    if (prev) return { ...prev, text }
+    const phase = stepPhases[text] ?? (prev ? stepPhase(prev) : 'cook')
+    if (prev) return { ...prev, text, phase }
     const timer = /(\d+)\s*(?:min|minute)/i.exec(text)
-    return { text, timerMinutes: timer ? Number(timer[1]) : undefined, sitBreak: /\bsit\b/i.test(text) }
+    return { text, timerMinutes: timer ? Number(timer[1]) : undefined, sitBreak: /\bsit\b/i.test(text), phase }
   })
+  const hasAssemble = steps.some((s) => s.phase === 'assemble')
   const toggle = <T,>(list: T[], v: T) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v])
 
   const save = async () => {
@@ -136,6 +141,27 @@ export function RecipeEditor() {
         </div>
         <TextArea label="Ingredients, one per line" rows={8} value={ingredientsText} onChange={(e) => setIngredientsText(e.target.value)} placeholder={'2 lb boneless skinless chicken thighs\n2 cans black beans, drained\n1/4 cup cilantro (optional)'} hint={parsedIngredients.length ? `${parsedIngredients.length} ingredients: ${parsedIngredients.slice(0, 3).map((i) => `${i.amount ?? ''} ${i.unit ?? ''} ${i.ingredientName}`.replace(/\s+/g, ' ').trim()).join('; ')}${parsedIngredients.length > 3 ? '; ...' : ''}` : 'Amount, unit, name, then a comma for prep.'} />
         <TextArea label="Steps, one per line" rows={8} value={stepsText} onChange={(e) => setStepsText(e.target.value)} placeholder={'Brown the beef, 10 minutes.\nSimmer 2 hours. Sit for this.'} hint={'Write "sit" in a step and cook mode adds a break. A number of minutes becomes a timer.'} />
+        {steps.length ? (
+          <div className="field">
+            <span className="field-label">When each step happens</span>
+            <p className="small muted" style={{ marginTop: 0 }}>
+              {hasAssemble ? 'Assemble steps go into a raw bag on cook day. Cook steps run later from the freezer.' : 'Tag a step "Assemble" to make this a dump kit: bag it raw on cook day, cook it later.'}
+            </p>
+            <div className="stack">
+              {steps.map((s, idx) => (
+                <div key={`${idx}-${s.text}`} className="spread" style={{ gap: 'var(--space-3)' }}>
+                  <span className="small" style={{ minWidth: 0 }}>{idx + 1}. {s.text}</span>
+                  <Segmented<StepPhase>
+                    label={`Step ${idx + 1} phase`}
+                    value={s.phase ?? 'cook'}
+                    options={[{ value: 'assemble', label: 'Assemble', description: 'Into the bag on cook day' }, { value: 'cook', label: 'Cook', description: 'Later, from the freezer' }]}
+                    onChange={(phase) => setStepPhases({ ...stepPhases, [s.text]: phase })}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
         <div className="grid-2">
           <TextField label="Active minutes" inputMode="numeric" value={active} onChange={(e) => setActive(e.target.value)} />
           <TextField label="Standing minutes" inputMode="numeric" value={standing} onChange={(e) => setStanding(e.target.value)} />

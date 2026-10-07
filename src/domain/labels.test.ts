@@ -84,6 +84,7 @@ function container(kind: ContainerKind, patch: Partial<Container> = {}): Contain
     kind,
     capacityMl: 240,
     countOwned: 6,
+    cavities: 1,
     disposable: kind === 'bag',
     ovenSafe: kind === 'pan',
     microwaveSafe: kind === 'tub',

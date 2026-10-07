@@ -3,7 +3,7 @@
 import type { ActivityEvent, ActivitySource, FreezerBlock, Item, ListLine, StockStatus } from '@/domain/types'
 import { newId } from '@/domain/ids'
 import { applyDelta, cycleStatus, deriveStatus } from '@/domain/status'
-import { nowIso, type Repository, type TableName } from './repository'
+import { nowIso, type Collection, type Repository, type TableName } from './repository'
 
 export interface Undoable {
   event: ActivityEvent
@@ -121,11 +121,40 @@ export async function cycleItemStatus(repo: Repository, item: Item, actor: Actor
   return setItemStatus(repo, item, cycleStatus(item.status), actor)
 }
 
+/** Counter change through the collection's delta op when it has one (two phones offline both land), else a full replace.
+    Undo sends the opposite of the change that actually applied (clamping at 0 can make it smaller than `delta`). */
+async function adjustCounter<K extends 'items' | 'freezer_blocks', T extends RowLike & Record<string, unknown>>(
+  repo: Repository,
+  table: K,
+  before: T,
+  field: string,
+  delta: number,
+  fallbackAfter: T,
+  actor: Actor,
+  summary: string,
+  action: string,
+): Promise<Undoable> {
+  const col = repo.table(table) as unknown as Collection<T>
+  if (!col.adjust) return replaceRow(repo, table, before, fallbackAfter, actor, summary, action)
+  const after = await col.adjust(before.id, field, delta)
+  if (!after) return replaceRow(repo, table, before, fallbackAfter, actor, summary, action)
+  const event = await logEvent(repo, before.householdId, actor, { entityType: table, entityId: before.id, action, summary, before, after })
+  const applied = Number(after[field] ?? 0) - Number(before[field] ?? 0)
+  return {
+    event,
+    undo: async () => {
+      const restored = (await col.adjust!(before.id, field, -applied)) ?? before
+      const undoEvent = await logEvent(repo, before.householdId, actor, { entityType: table, entityId: before.id, action: 'undo', summary: `Undid: ${summary}`, before: after, after: restored, undoOfEventId: event.id })
+      await repo.table('activity_events').patch(event.id, { undoneByEventId: undoEvent.id })
+    },
+  }
+}
+
 export async function adjustItemQty(repo: Repository, item: Item, delta: number, actor: Actor, reason?: string): Promise<Undoable> {
   const after = { ...applyDelta(item, delta), updatedAt: nowIso() }
   const verb = delta < 0 ? 'Used' : 'Added'
   const summary = `${verb} ${Math.abs(delta)} ${item.unit ?? ''} ${item.name}`.replace(/\s+/g, ' ').trim() + (reason ? ` (${reason})` : '')
-  return replaceRow(repo, 'items', item, after, actor, summary, 'adjust_qty')
+  return adjustCounter(repo, 'items', item as Item & Record<string, unknown>, 'qty', delta, after as Item & Record<string, unknown>, actor, summary, 'adjust_qty')
 }
 
 export async function setItemQty(repo: Repository, item: Item, qty: number, actor: Actor): Promise<Undoable> {
@@ -138,7 +167,8 @@ export async function setItemQty(repo: Repository, item: Item, qty: number, acto
 
 export async function eatFreezerBlock(repo: Repository, block: FreezerBlock, actor: Actor, count = 1): Promise<Undoable> {
   const after: FreezerBlock = { ...block, countRemaining: Math.max(0, block.countRemaining - count), updatedAt: nowIso() }
-  return replaceRow(repo, 'freezer_blocks', block, after, actor, `Ate ${count} ${block.title}${block.portionLabel ? ` (${block.portionLabel})` : ''}`, 'eat')
+  const summary = `Ate ${count} ${block.title}${block.portionLabel ? ` (${block.portionLabel})` : ''}`
+  return adjustCounter(repo, 'freezer_blocks', block as FreezerBlock & Record<string, unknown>, 'countRemaining', -count, after as FreezerBlock & Record<string, unknown>, actor, summary, 'eat')
 }
 
 /* ---- Shopping list ---- */

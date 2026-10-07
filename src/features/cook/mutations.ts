@@ -130,6 +130,10 @@ export interface FinishCookInput {
   deductions: Deduction[]
   items: Item[]
   blocks: Omit<FreezerBlock, keyof TenantRow>[]
+  /** A raw dump-kit block this cook came from: one is taken off it (Cook 1), the same way Eat 1 does. */
+  fromBlock?: FreezerBlock | null
+  /** True when the batch is a dump kit being bagged up, not cooked: the summary and plan status say so. */
+  assembled?: boolean
 }
 
 export async function finishCook(repo: Repository, householdId: string, input: FinishCookInput, actor: Actor): Promise<Undoable> {
@@ -152,20 +156,26 @@ export async function finishCook(repo: Repository, householdId: string, input: F
   const recipeAfter: Recipe = { ...input.recipe, lastCookedAt: now, timesCooked: input.recipe.timesCooked + 1, updatedAt: now }
   const entryBefore = input.planEntry
   const batchBefore = input.batch
+  const fromBlockBefore = input.fromBlock ?? null
+  const fromBlockAfter: FreezerBlock | null = fromBlockBefore ? { ...fromBlockBefore, countRemaining: Math.max(0, fromBlockBefore.countRemaining - 1), updatedAt: now } : null
   if (afterItems.length) await repo.table('items').putMany(afterItems)
   if (blocks.length) await repo.table('freezer_blocks').putMany(blocks)
+  if (fromBlockAfter) await repo.table('freezer_blocks').put(fromBlockAfter)
   await repo.table('cook_sessions').put(session)
   await repo.table('recipes').put(recipeAfter)
   if (entryBefore) await repo.table('plan_entries').put({ ...entryBefore, status: 'cooked', updatedAt: now })
-  if (batchBefore) await repo.table('batches').put({ ...batchBefore, status: blocks.length ? 'frozen' : 'cooked', cookedAt: now, updatedAt: now })
+  if (batchBefore) await repo.table('batches').put({ ...batchBefore, status: blocks.length ? 'frozen' : input.assembled ? 'assembled' : 'cooked', cookedAt: now, updatedAt: now })
   const frozen = blocks.reduce((n, b) => n + b.countInitial, 0)
-  const summary = `Cooked ${input.recipe.title}${frozen ? `; ${frozen} blocks to the freezer` : ''}${afterItems.length ? `; ${afterItems.length} pantry items updated` : ''}`
+  const verb = input.assembled ? 'Bagged up' : 'Cooked'
+  const fromText = fromBlockAfter ? ` from the freezer; ${fromBlockAfter.countRemaining} ${fromBlockAfter.countRemaining === 1 ? 'kit' : 'kits'} left` : ''
+  const summary = `${verb} ${input.recipe.title}${fromText}${frozen ? `; ${frozen} ${input.assembled ? 'raw kits' : 'blocks'} to the freezer` : ''}${afterItems.length ? `; ${afterItems.length} pantry items updated` : ''}`
   const event = await logEvent(repo, householdId, actor, { entityType: 'cook_sessions', entityId: session.id, action: 'cook', summary, after: session, cookSessionId: session.id })
   return {
     event,
     undo: async () => {
       if (beforeItems.length) await repo.table('items').putMany(beforeItems)
       for (const b of blocks) await repo.table('freezer_blocks').remove(b.id)
+      if (fromBlockBefore) await repo.table('freezer_blocks').put(fromBlockBefore)
       if (input.session) await repo.table('cook_sessions').put(input.session)
       else await repo.table('cook_sessions').remove(session.id)
       await repo.table('recipes').put(recipeBefore)

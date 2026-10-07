@@ -1,8 +1,10 @@
 import type { Household, Membership, Profile, Role, TenantRow } from '@/domain/types'
-import { toCamel, toSnake } from './casing'
+import { camelToSnake, toCamel, toSnake } from './casing'
 import type { QmSupabaseClient } from './client'
 import {
+  COUNTER_FIELDS,
   nowIso,
+  type AdjustOptions,
   type ChangeEvent,
   type Collection,
   type CreateHouseholdInput,
@@ -13,8 +15,41 @@ import {
   type Unsubscribe,
 } from '../repository'
 
+/** One queued write for public.apply_ops: a patch, a counter delta or a tombstone, in domain (camelCase) shape. */
+export interface ApplyOp {
+  table: TableName
+  id: string
+  kind: 'patch' | 'delta' | 'softDelete'
+  /** patch: the changed columns; delta: { field, delta }; softDelete: ignored. */
+  payload: Record<string, unknown> | null
+  /** delta only: the counter value the sender saw when it queued the op. */
+  base?: number | null
+}
+
+export interface ApplyOpResult {
+  ok: boolean
+  kind: string
+  table: string
+  id: string
+  /** delta only: the counter after the change. */
+  value?: number
+  /** delta only: true when the server found a different value than `base` (the delta still applied). */
+  baseMismatch?: boolean
+  error?: string
+  code?: string
+}
+
+/** Adapters that can take several outbox ops in one round trip (SyncedRepository feature-detects this). */
+export interface OpsRemote {
+  applyOps(ops: ApplyOp[]): Promise<ApplyOpResult[]>
+}
+
+export function hasApplyOps(remote: unknown): remote is OpsRemote {
+  return !!remote && typeof (remote as { applyOps?: unknown }).applyOps === 'function'
+}
+
 /** Talks to Supabase as the signed-in user; every row passes RLS. Realtime changes fan out through subscribe(). */
-export class SupabaseRepository implements Repository {
+export class SupabaseRepository implements Repository, OpsRemote {
   readonly mode = 'supabase' as const
   private listeners = new Set<(e: ChangeEvent) => void>()
   private channelHousehold: string | null = null
@@ -86,6 +121,9 @@ export class SupabaseRepository implements Repository {
           const ids = (members ?? []).map((m) => m.user_id)
           if (ids.length === 0) return []
           q = from().select('*').in('user_id', ids)
+        } else if (name === 'push_subscriptions') {
+          // Per user, not per household; RLS limits the rows to the signed-in user's own phones.
+          q = from().select('*')
         } else {
           q = from().select('*').eq('household_id', householdId)
           if (!opts?.includeDeleted) q = q.is('deleted_at', null)
@@ -130,7 +168,48 @@ export class SupabaseRepository implements Repository {
         if (error) throw error
         emit([id], null)
       },
+      adjust: async (id, field, delta, opts?: AdjustOptions) => {
+        if (!COUNTER_FIELDS[name]?.includes(field)) throw new Error(`${name}.${field} is not a counter`)
+        const [result] = await this.applyOps([{ table: name, id, kind: 'delta', payload: { field, delta }, base: opts?.base ?? null }])
+        if (!result) throw new Error('apply_ops returned nothing')
+        if (!result.ok) {
+          if (result.code === 'P0002') return null
+          throw new Error(result.error ?? 'adjust failed')
+        }
+        const { data, error } = await from().select('*').eq(pk, id).maybeSingle()
+        if (error) throw error
+        return data ? toCamel<Row>(data as Record<string, unknown>) : null
+      },
     }
+  }
+
+  /** Send several ops in one round trip through public.apply_ops (runs under the caller's RLS). Column names go over
+      as snake_case; results come back per op in the same order. */
+  async applyOps(ops: ApplyOp[]): Promise<ApplyOpResult[]> {
+    if (ops.length === 0) return []
+    const wire = ops.map((op) => ({
+      table: op.table,
+      id: op.id,
+      kind: op.kind,
+      payload:
+        op.kind === 'delta'
+          ? { field: camelToSnake(String(op.payload?.field ?? '')), delta: Number(op.payload?.delta ?? 0) }
+          : op.kind === 'patch'
+            ? toSnake(op.payload ?? {})
+            : null,
+      base: op.kind === 'delta' ? (op.base ?? null) : null,
+    }))
+    // apply_ops is newer than the generated types; call it through a loose handle like table() does.
+    const rpc = (this.client as unknown as { rpc: (fn: string, args: Record<string, unknown>) => PromiseLike<{ data: unknown; error: { message: string } | null }> }).rpc
+    const { data, error } = await rpc.call(this.client, 'apply_ops', { ops: wire })
+    if (error) throw error
+    const results = (Array.isArray(data) ? data : []).map((r) => toCamel<ApplyOpResult>(r as Record<string, unknown>))
+    const byTable = new Map<TableName, string[]>()
+    ops.forEach((op, i) => {
+      if (results[i]?.ok) byTable.set(op.table, [...(byTable.get(op.table) ?? []), op.id])
+    })
+    for (const [table, ids] of byTable) this.emit({ table, householdId: null, ids, origin: 'local' })
+    return results
   }
 
   subscribe(listener: (e: ChangeEvent) => void): Unsubscribe {

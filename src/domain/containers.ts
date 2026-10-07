@@ -36,6 +36,40 @@ export interface ContainerWarning {
   text: string
 }
 
+/** Portions one tray holds at once. Rows written before the cavities column count as 1. */
+export function cavitiesOf(c: Pick<Container, 'cavities'>): number {
+  const n = Math.floor(Number(c.cavities))
+  return Number.isFinite(n) && n >= 1 ? n : 1
+}
+
+/** Blocks the household can fill at once: trays owned times cavities per tray. */
+export function blocksAtOnce(c: Pick<Container, 'countOwned' | 'cavities'>): number {
+  return Math.max(0, Math.floor(c.countOwned)) * cavitiesOf(c)
+}
+
+/** "2 trays x 4 cavities = 8 blocks" for trays; "20 bags" when each holds one portion. */
+export function capacityText(c: Pick<Container, 'countOwned' | 'cavities' | 'kind' | 'disposable'>): string {
+  const trays = Math.max(0, Math.floor(c.countOwned))
+  const cav = cavitiesOf(c)
+  const unit = unitWord(c)
+  if (cav === 1) return `${trays} ${trays === 1 ? unit : plural(unit)}`
+  return `${trays} ${trays === 1 ? unit : plural(unit)} x ${cav} cavities = ${trays * cav} blocks`
+}
+
+function unitWord(c: Pick<Container, 'kind' | 'disposable'>): string {
+  if (c.kind === 'tray') return 'tray'
+  if (c.kind === 'bag') return 'bag'
+  if (c.kind === 'tub') return 'tub'
+  if (c.kind === 'jar') return 'jar'
+  if (c.kind === 'pan') return 'pan'
+  if (c.kind === 'muffin_tin') return 'tin'
+  return c.disposable ? 'piece' : 'container'
+}
+
+function plural(word: string): string {
+  return word === 'piece' ? 'pieces' : `${word}s`
+}
+
 /** Turn a recipe and a set of container targets into multiplier, plan lines, and warnings. */
 export function planContainers(recipe: Recipe, targets: ContainerTarget[], containers: Container[]): ContainerMath {
   const warnings: ContainerWarning[] = []
@@ -51,14 +85,16 @@ export function planContainers(recipe: Recipe, targets: ContainerTarget[], conta
     const count = Math.ceil(t.count)
     totalMl += portionMl * count
     plan.push({ containerId: c.id, count, portionMl, portionLabel: portionLabel(portionMl, c) })
-    if (count > c.countOwned) {
+    const blocks = blocksAtOnce(c)
+    if (count > blocks) {
       if (c.disposable) {
-        buy.push({ containerId: c.id, name: c.name, count: count - c.countOwned })
-        warnings.push({ kind: 'exceeds_owned', containerId: c.id, text: `Needs ${count} ${c.name}; you have ${c.countOwned}. Add "buy ${count - c.countOwned} ${c.name}" to the list.` })
-      } else if (c.countOwned > 0) {
-        const rounds = Math.ceil(count / c.countOwned)
-        freezeThenRefill.push({ containerId: c.id, rounds, text: `Fill ${c.countOwned} ${c.name}, freeze, pop out, refill. ${rounds} rounds.` })
-        warnings.push({ kind: 'exceeds_owned', containerId: c.id, text: `Needs ${count} ${c.name}; you have ${c.countOwned}. Freeze and refill in ${rounds} rounds.` })
+        const short = Math.ceil((count - blocks) / cavitiesOf(c))
+        buy.push({ containerId: c.id, name: c.name, count: short })
+        warnings.push({ kind: 'exceeds_owned', containerId: c.id, text: `Needs ${count} ${c.name}; you have ${capacityText(c)}. Add "buy ${short} ${c.name}" to the list.` })
+      } else if (blocks > 0) {
+        const rounds = Math.ceil(count / blocks)
+        freezeThenRefill.push({ containerId: c.id, rounds, text: `Fill ${capacityText(c)} of ${c.name}, freeze, pop out, refill. ${rounds} rounds.` })
+        warnings.push({ kind: 'exceeds_owned', containerId: c.id, text: `Needs ${count} ${c.name}; you have ${capacityText(c)}. Freeze and refill in ${rounds} rounds.` })
       } else {
         warnings.push({ kind: 'exceeds_owned', containerId: c.id, text: `You have no ${c.name}.` })
       }
@@ -74,14 +110,14 @@ export function planContainers(recipe: Recipe, targets: ContainerTarget[], conta
   return { totalMl, multiplier, plan, warnings, freezeThenRefill, buy }
 }
 
-/** Suggest a container plan for a target volume using what the household owns, largest first, leaving at most one partial. */
+/** Suggest a container plan for a target volume using the blocks the household can fill at once, largest first, leaving at most one partial. */
 export function suggestContainerPlan(targetMl: number, containers: Container[]): ContainerTarget[] {
-  const usable = containers.filter((c) => !c.deletedAt && c.countOwned > 0 && c.capacityMl > 0).sort((a, b) => b.capacityMl - a.capacityMl)
+  const usable = containers.filter((c) => !c.deletedAt && blocksAtOnce(c) > 0 && c.capacityMl > 0).sort((a, b) => b.capacityMl - a.capacityMl)
   const out: ContainerTarget[] = []
   let remaining = targetMl
   for (const c of usable) {
     if (remaining <= 0) break
-    const fit = Math.min(c.countOwned, Math.floor(remaining / c.capacityMl))
+    const fit = Math.min(blocksAtOnce(c), Math.floor(remaining / c.capacityMl))
     if (fit > 0) {
       out.push({ containerId: c.id, count: fit })
       remaining -= fit * c.capacityMl
@@ -89,7 +125,7 @@ export function suggestContainerPlan(targetMl: number, containers: Container[]):
   }
   if (remaining > 0) {
     // One partial in the smallest container that still has room, else the largest.
-    const smallest = usable.slice().reverse().find((c) => (out.find((o) => o.containerId === c.id)?.count ?? 0) < c.countOwned)
+    const smallest = usable.slice().reverse().find((c) => (out.find((o) => o.containerId === c.id)?.count ?? 0) < blocksAtOnce(c))
     const pick = smallest ?? usable[0]
     if (pick) {
       const existing = out.find((o) => o.containerId === pick.id)
@@ -102,12 +138,19 @@ export function suggestContainerPlan(targetMl: number, containers: Container[]):
 
 export interface ContainerAvailability {
   container: Container
+  /** Trays (or bags, tubs, jars) owned. */
+  trays: number
+  /** Portions per tray. */
+  cavities: number
+  /** Blocks that can be filled at once: trays * cavities. */
   owned: number
+  /** Blocks the day's batches need. */
   needed: number
+  /** Blocks beyond what fits at once. */
   short: number
 }
 
-/** Across the batches scheduled on one day, how many of each container are needed versus owned. */
+/** Across the batches scheduled on one day, how many blocks of each container are needed versus what fits at once (trays times cavities). */
 export function containerAvailability(batches: Batch[], containers: Container[]): ContainerAvailability[] {
   const needed = new Map<string, number>()
   for (const b of batches) {
@@ -118,7 +161,8 @@ export function containerAvailability(batches: Batch[], containers: Container[])
     .filter((c) => !c.deletedAt)
     .map((c) => {
       const n = needed.get(c.id) ?? 0
-      return { container: c, owned: c.countOwned, needed: n, short: Math.max(0, n - c.countOwned) }
+      const owned = blocksAtOnce(c)
+      return { container: c, trays: Math.max(0, Math.floor(c.countOwned)), cavities: cavitiesOf(c), owned, needed: n, short: Math.max(0, n - owned) }
     })
     .filter((a) => a.needed > 0)
 }

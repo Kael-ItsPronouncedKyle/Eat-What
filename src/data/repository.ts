@@ -3,7 +3,7 @@
 
 import type {
   ActivityEvent, Batch, Container, CookSession, CookWeek, FreezerBlock, Household, Invite, Item, ItemAlias, ItemRetailerLink,
-  ListLine, ListSend, Location, Membership, NotificationPref, PartnerTurn, PlanEntry, Price, Profile, Receipt, ReceiptLine, Recipe,
+  ListLine, ListSend, Location, Membership, NotificationPref, PartnerTurn, PlanEntry, Price, Profile, PushSubscription, Receipt, ReceiptLine, Recipe,
   RecipeIngredient, Retailer, Role, RoutingRule, Rule, Person, Spend, TenantRow,
 } from '@/domain/types'
 
@@ -37,6 +37,8 @@ export interface TableMap {
   activity_events: ActivityEvent
   invites: Invite
   notification_prefs: NotificationPref
+  /** Per user, no household: list(householdId) ignores the id and returns the signed-in user's own phones. */
+  push_subscriptions: PushSubscription
 }
 
 export type TableName = keyof TableMap
@@ -82,6 +84,21 @@ export interface Collection<T> {
   softDelete(id: string): Promise<void>
   /** Hard delete; used for undo of an insert and for non-tenant tables. */
   remove(id: string): Promise<void>
+  /** Counter change (delta op): adds `delta` to a numeric field, clamped at 0, so two phones adjusting the same counter
+      offline both land. Only items.qty and freezer_blocks.countRemaining are counters. Optional: adapters that cannot
+      replay a delta leave it out and callers fall back to a full-row replace. `opts.base` is the value the caller saw;
+      the server records a sync event when it finds something else (the delta still applies). */
+  adjust?(id: string, field: string, delta: number, opts?: AdjustOptions): Promise<T | null>
+}
+
+export interface AdjustOptions {
+  base?: number | null
+}
+
+/** Counter fields a delta op may touch, per table (domain field names). */
+export const COUNTER_FIELDS: Partial<Record<TableName, readonly string[]>> = {
+  items: ['qty'],
+  freezer_blocks: ['countRemaining'],
 }
 
 export interface CreateHouseholdInput {

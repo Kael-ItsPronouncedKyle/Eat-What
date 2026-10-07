@@ -1,6 +1,8 @@
 import type { Household, Role } from '@/domain/types'
 import { newId } from '@/domain/ids'
 import { QmDatabase, type OutboxOp } from '../local/db'
+import { applyCounterDelta } from '../local/LocalRepository'
+import { hasApplyOps, type ApplyOp } from '../supabase/SupabaseRepository'
 import {
   nowIso,
   TENANT_TABLES,
@@ -33,7 +35,9 @@ export class SyncedRepository implements Repository {
   private statusListeners = new Set<(s: SyncStatus) => void>()
   private status: SyncStatus = { pending: 0, online: true, flushing: false, lastPullAt: null, lastError: null }
   private flushPromise: Promise<void> | null = null
+  private flushQueued: Promise<void> | null = null
   private pulled = new Set<string>()
+  private seq: number | null = null
   private pulling = new Map<string, Promise<void>>()
   private detach: (() => void)[] = []
   private isOnline: () => boolean
@@ -136,6 +140,20 @@ export class SyncedRepository implements Repository {
         await this.enqueue({ householdId: hid(existing), table: name, rowId: id, kind: 'remove', payload: null })
         emit([id], hid(existing))
       },
+      // Counter change: applied to the mirror now, replayed on the server as a delta (not a value), so two phones that
+      // each ate one block offline both land. `base` is what this phone saw; the server notes a mismatch, never a loss.
+      adjust: async (id, field, delta, opts) => {
+        const existing = (await store.get(id)) as unknown as AnyRow | undefined
+        if (!existing) return null
+        const seen = existing[field]
+        const base = opts?.base ?? (typeof seen === 'number' && Number.isFinite(seen) ? seen : 0)
+        const stamp: Partial<AnyRow> = 'updatedAt' in existing ? { updatedAt: nowIso() } : {}
+        const next: AnyRow = { ...applyCounterDelta(name, existing, field, delta), ...stamp }
+        await store.put(next as unknown as TableMap[K])
+        await this.enqueue({ householdId: hid(next), table: name, rowId: id, kind: 'delta', payload: { field, delta, base } })
+        emit([id], hid(next))
+        return next as unknown as TableMap[K]
+      },
     }
   }
 
@@ -163,20 +181,35 @@ export class SyncedRepository implements Repository {
 
   /* ---- outbox ---- */
 
-  private async enqueue(op: Omit<OutboxOp, 'id' | 'createdAt' | 'attempts' | 'lastError'>): Promise<void> {
-    await this.db.outbox.put({ ...op, id: newId(), createdAt: nowIso(), attempts: 0, lastError: null })
+  private async enqueue(op: Omit<OutboxOp, 'id' | 'createdAt' | 'attempts' | 'lastError' | 'seq'>): Promise<void> {
+    if (this.seq === null) this.seq = (await this.db.outbox.toArray()).reduce((m, o) => Math.max(m, o.seq ?? 0), 0)
+    this.seq += 1
+    await this.db.outbox.put({ ...op, id: newId(), createdAt: nowIso(), seq: this.seq, attempts: 0, lastError: null })
     await this.refreshPending()
     void this.flush()
   }
 
+  private pendingGen = 0
+
+  /** Re-count the outbox. A slow count started earlier (the constructor's, say) must not overwrite a newer one. */
   private async refreshPending(): Promise<void> {
+    const gen = ++this.pendingGen
     const pending = await this.db.outbox.count()
-    this.setStatus({ pending })
+    if (gen === this.pendingGen) this.setStatus({ pending })
   }
 
-  /** Drain the outbox in order. Stops at the first network failure; drops an op the server rejects (logged as lastError). */
-  async flush(): Promise<void> {
-    if (this.flushPromise) return this.flushPromise
+  /** Drain the outbox in order. Stops at the first network failure; drops an op the server rejects (logged as lastError).
+      When the remote can take a batch (apply_ops), consecutive patch, delta and tombstone ops for one household go as
+      one call; puts and hard deletes, and every op on a remote without apply_ops, go one at a time. */
+  flush(): Promise<void> {
+    if (this.flushPromise) {
+      // A pass is running (it may have found us offline a moment ago): run one more after it, shared by every caller.
+      this.flushQueued ??= this.flushPromise.then(() => {
+        this.flushQueued = null
+        return this.flush()
+      })
+      return this.flushQueued
+    }
     this.flushPromise = (async () => {
       try {
         if (!this.isOnline()) {
@@ -184,21 +217,20 @@ export class SyncedRepository implements Repository {
           return
         }
         this.setStatus({ online: true, flushing: true })
-        const ops = await this.db.outbox.orderBy('createdAt').toArray()
-        for (const op of ops) {
-          try {
-            await this.apply(op)
-            await this.db.outbox.delete(op.id)
-            this.setStatus({ lastError: null })
-          } catch (e) {
-            const msg = e instanceof Error ? e.message : String(e)
-            if (isNetworkError(e)) {
-              this.setStatus({ online: false, lastError: msg })
-              break
-            }
-            // Rejected by the server (RLS, constraint): drop it so the queue does not jam, and keep the message.
-            await this.db.outbox.delete(op.id)
-            this.setStatus({ lastError: `${op.table}: ${msg}` })
+        // Several ops can share a millisecond; seq keeps them in the order they were made.
+        const ops = (await this.db.outbox.toArray()).sort((a, b) => a.createdAt.localeCompare(b.createdAt) || (a.seq ?? 0) - (b.seq ?? 0))
+        const batching = hasApplyOps(this.remote)
+        let i = 0
+        while (i < ops.length) {
+          const op = ops[i]!
+          if (batching && isBatchable(op)) {
+            let j = i + 1
+            while (j < ops.length && isBatchable(ops[j]!) && ops[j]!.householdId === op.householdId) j++
+            if (await this.flushRun(ops.slice(i, j))) break
+            i = j
+          } else {
+            if (await this.flushOne(op)) break
+            i++
           }
         }
       } finally {
@@ -210,12 +242,62 @@ export class SyncedRepository implements Repository {
     return this.flushPromise
   }
 
+  /** Apply one op. Returns true when the flush must stop (network gone). */
+  private async flushOne(op: OutboxOp): Promise<boolean> {
+    try {
+      await this.apply(op)
+      await this.db.outbox.delete(op.id)
+      this.setStatus({ lastError: null })
+      return false
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      if (isNetworkError(e)) {
+        this.setStatus({ online: false, lastError: msg })
+        return true
+      }
+      // Rejected by the server (RLS, constraint): drop it so the queue does not jam, and keep the message.
+      await this.db.outbox.delete(op.id)
+      this.setStatus({ lastError: `${op.table}: ${msg}` })
+      return false
+    }
+  }
+
+  /** Send a run of ops as one apply_ops call. A per-op rejection drops that op; a failed call that is not the network
+      falls back to one-at-a-time so an older server never jams the queue. Returns true when the flush must stop. */
+  private async flushRun(run: OutboxOp[]): Promise<boolean> {
+    if (!hasApplyOps(this.remote)) return false
+    let results
+    try {
+      results = await this.remote.applyOps(run.map(toApplyOp))
+    } catch (e) {
+      if (isNetworkError(e)) {
+        this.setStatus({ online: false, lastError: e instanceof Error ? e.message : String(e) })
+        return true
+      }
+      for (const op of run) if (await this.flushOne(op)) return true
+      return false
+    }
+    for (let k = 0; k < run.length; k++) {
+      const op = run[k]!
+      const r = results[k]
+      await this.db.outbox.delete(op.id)
+      if (r?.ok) this.setStatus({ lastError: null })
+      else this.setStatus({ lastError: `${op.table}: ${r?.error ?? 'no result from the server'}` })
+    }
+    return false
+  }
+
   private async apply(op: OutboxOp): Promise<void> {
     const col = this.remote.table(op.table) as unknown as Collection<AnyRow>
     if (op.kind === 'put') await col.put(op.payload as unknown as AnyRow)
     else if (op.kind === 'patch') await col.patch(op.rowId, op.payload as Partial<AnyRow>)
     else if (op.kind === 'softDelete') await col.softDelete(op.rowId)
-    else await col.remove(op.rowId)
+    else if (op.kind === 'delta') {
+      const { field, delta, base } = op.payload as DeltaPayload
+      if (col.adjust) await col.adjust(op.rowId, field, delta, { base })
+      // A remote with no delta op gets the value this phone computed (last write wins, the old behaviour).
+      else await col.patch(op.rowId, { [field]: Math.max(0, (base ?? 0) + delta) } as Partial<AnyRow>)
+    } else await col.remove(op.rowId)
   }
 
   /* ---- pull ---- */
@@ -350,6 +432,27 @@ export class SyncedRepository implements Repository {
     await this.db.open()
     this.pulled.clear()
   }
+}
+
+interface DeltaPayload {
+  field: string
+  delta: number
+  base: number | null
+}
+
+const BATCHABLE = new Set<OutboxOp['kind']>(['patch', 'delta', 'softDelete'])
+
+function isBatchable(op: OutboxOp): boolean {
+  return BATCHABLE.has(op.kind)
+}
+
+function toApplyOp(op: OutboxOp): ApplyOp {
+  if (op.kind === 'delta') {
+    const { field, delta, base } = op.payload as DeltaPayload
+    return { table: op.table, id: op.rowId, kind: 'delta', payload: { field, delta }, base }
+  }
+  if (op.kind === 'patch') return { table: op.table, id: op.rowId, kind: 'patch', payload: op.payload as Record<string, unknown> }
+  return { table: op.table, id: op.rowId, kind: 'softDelete', payload: null }
 }
 
 function isNetworkError(e: unknown): boolean {

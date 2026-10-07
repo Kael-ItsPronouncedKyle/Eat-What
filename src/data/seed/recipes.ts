@@ -102,7 +102,7 @@ export const SEED_RECIPES: SeedRecipe[] = [
       { name: 'cilantro', amount: 0.25, unit: 'cup', preparation: 'chopped', optional: true, substitute: 'scallion greens' },
     ],
     steps: [
-      { text: 'Put everything except the cream cheese, corn, lime, and cilantro in the crockpot.', minutes: 10, standingMinutes: 8 },
+      { text: 'Put everything except the cream cheese, corn, lime, and cilantro in the crockpot.', minutes: 10, standingMinutes: 8, phase: 'assemble' },
       { text: 'Cook on low 6 hours or high 4 hours. Nothing to do.', minutes: 360, standingMinutes: 0, sitBreak: true },
       { text: 'Shred the chicken with two forks right in the pot. Stir in cream cheese and corn. 20 minutes on high.', minutes: 20, standingMinutes: 5, timerMinutes: 20 },
       { text: 'Finish with lime juice. Cilantro on top for whoever wants it.', minutes: 2, standingMinutes: 1 },
@@ -214,7 +214,7 @@ export const SEED_RECIPES: SeedRecipe[] = [
       { name: 'salt', amount: 1.5, unit: 'tsp' },
     ],
     steps: [
-      { text: 'Everything but the cornstarch into the crockpot. Stir.', minutes: 12, standingMinutes: 10 },
+      { text: 'Everything but the cornstarch into the crockpot. Stir.', minutes: 12, standingMinutes: 10, phase: 'assemble' },
       { text: 'Low 8 hours. Sit.', minutes: 480, standingMinutes: 0, sitBreak: true },
       { text: 'Stir cornstarch into a little cold water, add, 20 minutes on high to thicken.', minutes: 20, standingMinutes: 3, timerMinutes: 20 },
     ],
@@ -322,8 +322,8 @@ export const SEED_RECIPES: SeedRecipe[] = [
       { name: 'butter', amount: 4, unit: 'tbsp' },
     ],
     steps: [
-      { text: 'Put everything in a gallon bag. Press flat. Label with the cook note below.', minutes: 8, standingMinutes: 5 },
-      { text: 'Cook day: dump frozen into the crockpot, low 9 hours, high 6. Shred.', minutes: 540, standingMinutes: 3, sitBreak: true },
+      { text: 'Put everything in a gallon bag. Press flat. Label with the cook note below.', minutes: 8, standingMinutes: 5, phase: 'assemble' },
+      { text: 'Cook day: dump frozen into the crockpot, low 9 hours, high 6. Shred.', minutes: 540, standingMinutes: 3, sitBreak: true, phase: 'cook' },
     ],
     freezeNotes: 'This IS the freezer step. 6 months raw in the bag.',
     reheatNotes: { bag: { method: 'cook_from_frozen', text: 'Straight from the freezer into the crockpot, low 9 hours.' } },

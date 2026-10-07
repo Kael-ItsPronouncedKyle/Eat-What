@@ -1,7 +1,9 @@
-import type { Household, Membership, Profile, Role, TenantRow } from '@/domain/types'
+import type { Household, Item, Membership, Profile, Role, TenantRow } from '@/domain/types'
 import { newId } from '@/domain/ids'
+import { setQuantity } from '@/domain/status'
 import { QmDatabase } from './db'
 import {
+  COUNTER_FIELDS,
   nowIso,
   type ChangeEvent,
   type Collection,
@@ -15,6 +17,19 @@ import {
 import { seedHouseholdDefaults } from '../seed/defaults'
 
 export const DEMO_USER_ID = 'local-demo-user'
+
+/** Apply a counter delta to a row in memory: clamped at 0; an item's qty also re-derives its status (count mode).
+    Shared by the local adapter and the offline mirror so both see the same number the server will. */
+export function applyCounterDelta<T extends Record<string, unknown>>(table: TableName, row: T, field: string, delta: number): T {
+  if (!COUNTER_FIELDS[table]?.includes(field)) throw new Error(`${table}.${field} is not a counter`)
+  const change = Number.isFinite(delta) ? delta : 0
+  if (table === 'items' && field === 'qty') {
+    const item = row as unknown as Item
+    return setQuantity(item, (typeof item.qty === 'number' && Number.isFinite(item.qty) ? item.qty : 0) + change) as unknown as T
+  }
+  const current = typeof row[field] === 'number' && Number.isFinite(row[field] as number) ? (row[field] as number) : 0
+  return { ...row, [field]: Math.max(0, current + change) }
+}
 
 /** Runs the whole app with no backend: IndexedDB in the browser, fake-indexeddb in tests. */
 export class LocalRepository implements Repository {
@@ -68,6 +83,9 @@ export class LocalRepository implements Repository {
         } else if (name === 'profiles') {
           const members = (await this.db.memberships.where('householdId').equals(householdId).toArray()).filter((m) => !m.deletedAt)
           rows = (await this.db.profiles.bulkGet(members.map((m) => m.userId))).filter((p): p is TableMap['profiles'] => !!p) as TableMap[K][]
+        } else if (name === 'push_subscriptions') {
+          // Per user, not per household: the signed-in user's own phones.
+          rows = (await this.db.push_subscriptions.where('userId').equals(this.userId).toArray()) as TableMap[K][]
         } else {
           rows = await store.where('householdId').equals(householdId).toArray()
         }
@@ -105,6 +123,15 @@ export class LocalRepository implements Repository {
         const existing = await store.get(id)
         await store.delete(id)
         emit([id], hid(existing))
+      },
+      adjust: async (id, field, delta) => {
+        const existing = await store.get(id)
+        if (!existing) return null
+        const next = applyCounterDelta(name, existing as unknown as Record<string, unknown>, field, delta) as unknown as TableMap[K]
+        if ('updatedAt' in (next as object)) (next as unknown as TenantRow).updatedAt = nowIso()
+        await store.put(next)
+        emit([id], hid(next))
+        return next
       },
     }
   }
