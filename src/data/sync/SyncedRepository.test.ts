@@ -33,7 +33,8 @@ describe('SyncedRepository (offline mirror + outbox)', () => {
   it('writes land locally first and reach the remote after a flush', async () => {
     const s = await synced.session()
     const hid = s.activeHouseholdId!
-    const item = (await synced.table('items').list(hid))[0]!
+    // Rows list in id order, which is random per seed; pick one the write will actually change.
+    const item = (await synced.table('items').list(hid)).find((x) => x.status !== 'out')!
     online = false
     await synced.table('items').put({ ...item, status: 'out' })
     expect((await synced.table('items').get(item.id))!.status).toBe('out')
