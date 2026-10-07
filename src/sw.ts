@@ -17,7 +17,7 @@ interface PushPayload {
 
 precacheAndRoute(self.__WB_MANIFEST)
 cleanupOutdatedCaches()
-registerRoute(new NavigationRoute(createHandlerBoundToURL('/index.html')))
+registerRoute(new NavigationRoute(createHandlerBoundToURL(`${import.meta.env.BASE_URL}index.html`)))
 
 // registerType 'autoUpdate': take over as soon as a new build is installed.
 self.addEventListener('message', (event) => {
@@ -44,7 +44,10 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
   const url = (event.notification.data as { url?: string } | undefined)?.url ?? '/'
-  const target = new URL(url, self.location.origin).href
+  // Deep links from the server are app paths ('/shop/ordered'); prefix the base when the app lives under a sub-path.
+  const base = import.meta.env.BASE_URL
+  const path = url.startsWith('/') && base !== '/' && !url.startsWith(base) ? base.replace(/\/$/, '') + url : url
+  const target = new URL(path, self.location.origin).href
   event.waitUntil(
     (async () => {
       const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })

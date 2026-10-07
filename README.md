@@ -2,7 +2,7 @@
 
 A voice-first, multi-household app that knows what is in the house, tells you what you can cook from it, plans the week and the freezer batches, and pushes the gaps to Instacart, H-E-B, Walmart, Amazon, or a plain list. It replaces Neelix's Kitchen.
 
-Spec: `docs/spec.md`. Readiness review: `docs/spec-review.md`. Build plan: `docs/implementation-plan.md`.
+Spec: `docs/spec.md`. Readiness review: `docs/spec-review.md`. Build plan: `docs/implementation-plan.md`. Owner setup, from hosting to push: `docs/SETUP.md`.
 
 ## Run it
 
@@ -16,7 +16,7 @@ With no Supabase keys the app runs entirely in the browser (IndexedDB). Reset th
 ## Connect Supabase
 
 1. Create a Supabase project. Apply the migrations in order with the SQL editor or the CLI:
-   `supabase/migrations/0001_init.sql`, `0002_rls.sql`, `0003_functions.sql`, `0004_realtime.sql`.
+   `supabase/migrations/0001_init.sql` through `0008_notify_queue.sql` (`supabase db push` after `supabase link` applies them all).
 2. In Authentication, turn off public sign-ups and enable email OTP. Create the first user with the dashboard or `auth.admin.inviteUserByEmail`.
 3. Copy `.env.example` to `.env` and set `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`.
 4. Sign in, then call `create_household('Denton', 'America/Chicago', '76207', 'souper_cubes')` once (House, Start another household does this from the app).
@@ -37,9 +37,9 @@ Phone-size captures of the seeded Denton household, from `scripts/screenshot.mjs
 | --- | --- | --- | --- |
 | ![Shop](docs/screenshots/shop.png) | ![Price book](docs/screenshots/prices.png) | ![House](docs/screenshots/house.png) | ![Pantry at A++](docs/screenshots/pantry-a-plus-plus.png) |
 
-## CI
+## CI and hosting
 
-`.github/workflows/ci.yml` runs typecheck, lint, unit tests, build, the SQL tenancy tests, and the Playwright flows on every push and pull request. `price-check.yml` runs the weekly web price check once the Supabase secrets exist.
+`.github/workflows/pages.yml` publishes `main` to GitHub Pages at `https://<owner>.github.io/Eat-What/` (enable Pages with Source: GitHub Actions once; see `docs/SETUP.md`). `.github/workflows/ci.yml` runs typecheck, lint, unit tests, build, the SQL tenancy tests, and the Playwright flows on every push and pull request. `price-check.yml` runs the weekly web price check once the Supabase secrets exist.
 
 ## Checks
 

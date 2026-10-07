@@ -10,7 +10,8 @@ import { Join } from '@/features/auth/Join'
 import { PrintLabels } from '@/features/print/PrintLabels'
 import { PrintWeek } from '@/features/print/PrintWeek'
 
-export const router = createBrowserRouter([
+export const router = createBrowserRouter(
+  [
   {
     path: '/',
     element: <Shell />,
@@ -27,4 +28,7 @@ export const router = createBrowserRouter([
   // Print screens render without the shell: paper preview on screen, paper only when printed.
   { path: '/print/labels', element: <PrintLabels />, errorElement: <RouteError /> },
   { path: '/print/week/:id', element: <PrintWeek />, errorElement: <RouteError /> },
-])
+],
+  // The app can live under a sub-path (GitHub Pages); Vite injects the base at build time.
+  { basename: import.meta.env.BASE_URL.replace(/\/$/, '') || undefined },
+)
