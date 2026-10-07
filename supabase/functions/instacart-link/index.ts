@@ -17,8 +17,16 @@ interface LineIn {
 
 const UNIT_MAP: Record<string, string> = { lb: 'lb', oz: 'oz', g: 'g', kg: 'kg', cup: 'cup', each: 'each', can: 'each', bottle: 'each', bag: 'each', box: 'each', pack: 'each', roll: 'each', jar: 'each', ml: 'ml', l: 'l', quart: 'quart', pint: 'pint', gallon: 'gallon' }
 
+const CORS_HEADERS: Record<string, string> = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+}
+
 Deno.serve(async (req) => {
-  if (req.method !== 'POST') return new Response('Method not allowed', { status: 405 })
+  // Browsers send a CORS preflight before functions.invoke; answer it before anything else.
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS_HEADERS })
+  if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!
   const auth = req.headers.get('Authorization') ?? ''
@@ -67,5 +75,5 @@ Deno.serve(async (req) => {
 })
 
 function json(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
+  return new Response(JSON.stringify(body), { status, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } })
 }
