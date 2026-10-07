@@ -8,6 +8,7 @@ export default defineConfig({
     baseURL: 'http://localhost:4173',
     trace: 'retain-on-failure',
     ...devices['Pixel 7'],
+    launchOptions: process.env.PW_CHROMIUM_PATH ? { executablePath: process.env.PW_CHROMIUM_PATH } : {},
   },
   webServer: {
     command: 'npm run build && npm run preview -- --port 4173 --strictPort',

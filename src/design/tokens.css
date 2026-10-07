@@ -179,3 +179,7 @@
     --out-soft: #000000;
   }
 }
+
+/* Bars grow a little with text size so controls keep their 48px targets without clipping. */
+:root[data-text-size='A+'] { --header-h: 64px; --tabbar-h: 72px; }
+:root[data-text-size='A++'] { --header-h: 72px; --tabbar-h: 80px; }

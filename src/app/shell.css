@@ -1,5 +1,5 @@
 .shell { min-height: 100dvh; display: flex; flex-direction: column; }
-.skip-link { position: absolute; left: -999px; top: 8px; z-index: 100; background: var(--card); color: var(--fg); padding: 8px 12px; border-radius: 8px; }
+.skip-link { position: absolute; left: -999px; top: 8px; z-index: 100; background: var(--card); color: var(--fg); padding: 0 16px; min-height: var(--tap); display: inline-flex; align-items: center; border-radius: 8px; }
 .skip-link:focus { left: 8px; }
 
 .topbar {
@@ -43,3 +43,9 @@
 /* Low energy home: three big buttons */
 .big-three { display: flex; flex-direction: column; gap: var(--space-3); }
 .big-three .btn { min-height: calc(var(--tap-lg) * 1.4); font-size: var(--fs-xl); justify-content: flex-start; padding-left: var(--space-5); }
+
+/* At A++ the brand collapses to its mark so the household and text-size controls stay visible. */
+:root[data-text-size='A++'] .brand-name { display: none; }
+:root[data-text-size='A+'] .household-pill, :root[data-text-size='A+'] .household-select { max-width: 34vw; }
+:root[data-text-size='A++'] .household-pill, :root[data-text-size='A++'] .household-select { max-width: 44vw; }
+.partner-fab .btn { padding: 0; }

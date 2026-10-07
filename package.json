@@ -15,7 +15,8 @@
     "test:e2e": "playwright test",
     "db:local:up": "bash supabase/scripts/local-pg.sh up",
     "db:local:down": "bash supabase/scripts/local-pg.sh down",
-    "db:test": "bash supabase/scripts/test-rls.sh"
+    "db:test": "bash supabase/scripts/test-rls.sh",
+    "db:types": "supabase gen types typescript --db-url \"postgresql://postgres@127.0.0.1:5433/postgres?sslmode=disable\" --schema public > src/data/supabase/database.types.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.3",
@@ -37,6 +38,7 @@
     "fake-indexeddb": "^6.0.0",
     "jsdom": "^29.1.1",
     "oxlint": "^1.81.0",
+    "supabase": "^2.120.0",
     "typescript": "~6.0.2",
     "vite": "^8.3.0",
     "vite-plugin-pwa": "^2.0.0",
