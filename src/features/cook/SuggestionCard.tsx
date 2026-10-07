@@ -58,7 +58,7 @@ export function SuggestionCard({ s, compact }: { s: Suggestion; compact?: boolea
       ) : null}
       {s.expiringUsed.length ? <div className="small">Uses {s.expiringUsed.map((i) => i.name.toLowerCase()).join(', ')} before {s.expiringUsed.length === 1 ? 'it goes' : 'they go'}.</div> : null}
       {s.substitutions.length ? <div className="small">Swapped: {s.substitutions.map((x) => `${x.to} for ${x.from}`).join(', ')}{s.substitutions[0]?.personName ? ` (${s.substitutions[0].personName}'s rule)` : ''}.</div> : null}
-      {s.missing.length ? (
+      {s.missing.length && s.mode !== 'freezer_first' ? (
         <div className="missing-list" aria-label="Missing">
           {missingText.map((t) => (
             <Badge key={t} tone="out">need {t}</Badge>
@@ -72,7 +72,7 @@ export function SuggestionCard({ s, compact }: { s: Suggestion; compact?: boolea
           ) : (
             <Button variant="primary" size="lg" icon="cook" onClick={() => navigate(`/cook/mode/${r.id}`)}>Cook this</Button>
           )}
-          {s.missing.length ? <Button variant="secondary" size="lg" icon="cart" onClick={() => void addMissing()}>Add missing to list</Button> : null}
+          {s.missing.length && s.mode !== 'freezer_first' ? <Button variant="secondary" size="lg" icon="cart" onClick={() => void addMissing()}>Add missing to list</Button> : null}
         </div>
       ) : null}
       <Sheet open={why} title={`Why ${r.title}`} onClose={() => setWhy(false)} description="Every term, nothing hidden. Terms marked × multiply; + adds.">

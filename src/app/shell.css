@@ -52,3 +52,11 @@
 
 .splash { min-height: 100dvh; display: grid; place-content: center; justify-items: center; gap: var(--space-4); background: var(--bar-bg); color: var(--bar-fg); font-family: var(--font-display); font-size: var(--fs-lg); }
 .splash-mark { width: 56px; height: 56px; border-radius: 14px; background: var(--amber); }
+
+/* Header and page titles never overflow at A++: actions shrink or wrap. */
+.topbar-actions { flex: 1 1 auto; justify-content: flex-end; }
+.household-switch { flex: 1 1 auto; min-width: 0; justify-content: flex-end; }
+.household-select { flex: 0 1 auto; min-width: 0; }
+.brand { flex: 0 0 auto; }
+:root[data-text-size='A+'] .text-size-btn svg, :root[data-text-size='A++'] .text-size-btn svg { display: none; }
+.page-title { flex-wrap: wrap; }
