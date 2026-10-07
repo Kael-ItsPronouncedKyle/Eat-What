@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { countItem, entry, item, line, price, recipeWith, retailer, routing, TODAY } from './fixtures.test-helpers'
+import { countItem, entry, item, line, price, recipeWith, retailer, routing } from './fixtures.test-helpers'
 import { estimateLineCents, groupByDestination, mergeIntoList, plainTextList, planNeeds, restockNeeds, routeLine, subtractStock } from './listing'
 
 const thighs = countItem('Chicken thighs', 1, 'lb', 3, { canonicalName: 'chicken thigh', category: 'meat' })
