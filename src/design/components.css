@@ -143,3 +143,6 @@
 .tone-low .row-title { color: var(--low); }
 .tone-out .row-title { color: var(--out); }
 .row-chevron { flex: 0 0 auto; }
+
+/* Links styled as buttons never underline. */
+a.btn, a.btn:hover { text-decoration: none; }

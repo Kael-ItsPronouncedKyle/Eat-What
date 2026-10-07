@@ -92,6 +92,7 @@ export function costPerServingCents(
     if (ing.deletedAt) continue
     if (ing.optional) continue
     const item = row.item
+    if (item && item.alwaysHave) continue
     if (!item) {
       const av = row as IngredientAvailability
       if (av.status === 'assumed' && av.match?.via === 'always_have') continue

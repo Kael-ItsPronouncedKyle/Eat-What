@@ -49,6 +49,8 @@ export interface Suggestion {
 export const FRESHNESS_DAYS = 10
 export const FRESHNESS_PENALTY = -0.2
 export const EXPIRY_MAX_BONUS = 0.3
+/** A block already in the freezer is zero prep, so it outranks anything that needs cooking. */
+export const FREEZER_FIRST_SCORE = 1.5
 
 const MODE_ORDER: SuggestionMode[] = ['freezer_first', 'make_now', 'use_it_up', 'almost_there']
 
@@ -171,7 +173,7 @@ export function suggest(ctx: SuggestionContext): Suggestion[] {
     out.push({
       recipe,
       mode,
-      score: block && mode === 'freezer_first' ? round(score + 0.5) : score,
+      score: block && mode === 'freezer_first' ? round(FREEZER_FIRST_SCORE + (terms.find((t) => t.key === 'freshness')?.value ?? 0)) : score,
       terms,
       availability,
       missing: availability.missing,

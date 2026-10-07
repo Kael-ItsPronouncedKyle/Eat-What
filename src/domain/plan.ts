@@ -27,31 +27,19 @@ export function badDay(
 ): BadDayResult {
   const live = entries.filter((e) => !e.deletedAt)
   const changes: PlanChange[] = []
-  const occupied = (date: string, slot: PlanEntry['slot']) => live.some((e) => e.date === date && e.slot === slot && isCook(e) && !changes.some((c) => c.entry.id === e.id))
   const titleOf = (e: PlanEntry) => ctx.recipes.find((r) => r.id === e.recipeId)?.title ?? e.note ?? 'Tonight\'s cook'
   const todaysCooks = live.filter((e) => e.date === today && isCook(e) && e.slot === 'dinner')
-  // Chain: each displaced cook takes the next day; a cook already there is displaced further.
-  const queue: PlanEntry[] = [...todaysCooks]
+  // Chain: each displaced cook takes the next day; a cook already there is displaced one day further.
+  const queue: { entry: PlanEntry; target: string }[] = todaysCooks.map((e) => ({ entry: e, target: addDays(today, 1) }))
   const moved = new Set<string>()
-  while (queue.length) {
-    const e = queue.shift()!
+  let guard = 0
+  while (queue.length && guard++ < 60) {
+    const { entry: e, target } = queue.shift()!
     if (moved.has(e.id)) continue
-    let date = addDays(e.date, 1)
-    let guard = 0
-    while (guard++ < 30) {
-      const blocker = live.find((x) => x.id !== e.id && x.date === date && x.slot === e.slot && isCook(x) && !moved.has(x.id))
-      if (!blocker) break
-      queue.push(blocker)
-      moved.add(blocker.id)
-      changes.push({ entry: blocker, patch: { date: addDays(date, 1) }, text: `${titleOf(blocker)} moved to the next day` })
-      date = addDays(date, 1)
-      // The blocker now sits at date+1; our entry takes `date`.
-      break
-    }
-    if (!occupied(date, e.slot) || true) {
-      moved.add(e.id)
-      changes.push({ entry: e, patch: { date }, text: `${titleOf(e)} moved to tomorrow` })
-    }
+    moved.add(e.id)
+    const blocker = live.find((x) => x.id !== e.id && x.date === target && x.slot === e.slot && isCook(x) && !moved.has(x.id))
+    if (blocker) queue.push({ entry: blocker, target: addDays(target, 1) })
+    changes.push({ entry: e, patch: { date: target }, text: `${titleOf(e)} moved to ${target === addDays(today, 1) ? 'tomorrow' : 'the next free day'}` })
   }
   // Tonight: oldest fitting freezer block, else a no-cook recipe.
   const blocks = ctx.freezerBlocks
@@ -120,7 +108,7 @@ export function autoFill(suggestions: Suggestion[], existing: PlanEntry[], freez
     const taken = existing.some((e) => !e.deletedAt && e.date === date && e.slot === slot && e.status === 'planned')
     if (taken) continue
     if (freezerLeft > 0) {
-      const b = blocks.find((x) => x.left > 0)
+      const b = blocks.find((x) => x.left > 0 && x.left === x.block.countRemaining) ?? blocks.find((x) => x.left > 0)
       if (b) {
         b.left -= 1
         freezerLeft -= 1
