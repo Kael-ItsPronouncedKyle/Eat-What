@@ -43,6 +43,8 @@ describe('FreezerShelf Cook 1', () => {
     // A cooked block keeps Eat 1 only.
     expect(screen.getByRole('button', { name: 'Eat 1 Crockpot white chicken chili' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Cook 1 Crockpot white chicken chili' })).not.toBeInTheDocument()
-    expect(screen.getAllByRole('button', { name: /^Cook 1 / })).toHaveLength(1)
+    // The seed has one raw kit (Slow cooker beef stew) and this test added a second; no cooked block gets one.
+    expect(screen.getAllByRole('button', { name: /^Cook 1 / })).toHaveLength(2)
+    expect(screen.getByRole('button', { name: 'Cook 1 Slow cooker beef stew' })).toBeEnabled()
   })
 })

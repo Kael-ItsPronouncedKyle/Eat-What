@@ -23,10 +23,11 @@ Each feature owns a subtree and renders nested routes with `<Routes>` from `reac
 | Feature | Base route | Sub-routes it owns |
 | --- | --- | --- |
 | home | `/` | none |
-| pantry | `/pantry/*` | `/pantry`, `/pantry/item/:id`, `/pantry/freezer`, `/pantry/freezer/:id`, `/pantry/add`, `/pantry/scan` (placeholder) |
+| pantry | `/pantry/*` | `/pantry`, `/pantry/item/:id`, `/pantry/freezer`, `/pantry/freezer/:id`, `/pantry/add`, `/pantry/scan` (barcode and receipt) |
 | cook | `/cook/*` | `/cook` (suggestions), `/cook/recipes`, `/cook/recipes/new`, `/cook/recipe/:id`, `/cook/plan`, `/cook/week` (cook-week builder), `/cook/week/:id`, `/cook/mode/:recipeId` (full screen) |
 | shop | `/shop/*` | `/shop`, `/shop/ordered`, `/shop/prices`, `/shop/budget` |
-| house | `/house/*` | `/house`, `/house/members`, `/house/rules`, `/house/retailers`, `/house/locations`, `/house/containers`, `/house/notifications`, `/house/activity`, `/house/export`, `/house/import`, `/house/display` |
+| house | `/house/*` | `/house`, `/house/members`, `/house/rules`, `/house/retailers`, `/house/locations`, `/house/containers`, `/house/notifications`, `/house/prices` (weekly web check), `/house/activity`, `/house/export`, `/house/import`, `/house/display` |
+| print | `/print/*` | `/print/labels?week=<id>` or `?blocks=<ids>`, `/print/week/:id` (shell-less, letter @page) |
 
 Links between features use these paths. Do not edit `src/app/routes.tsx`; it already mounts each feature's page at its base.
 

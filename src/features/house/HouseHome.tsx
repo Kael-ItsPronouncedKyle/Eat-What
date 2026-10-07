@@ -6,6 +6,7 @@ import { useCollection, useRepo } from '@/data/provider'
 import { useUndoable } from '@/app/hooks/useActions'
 import { updateHousehold } from './mutations'
 import { formatCents } from '@/domain/money'
+import { capacityText } from '@/domain/containers'
 import { Button, Icon, ListRow, Sheet, TextField, type IconName } from '@/design/components'
 
 export function HouseHome() {
@@ -28,7 +29,7 @@ export function HouseHome() {
     { to: '/house/rules', icon: 'alert', title: 'Rules', subtitle: `${data.rules.filter((r) => r.active).length} active: allergies, prep, diet, cuisine` },
     { to: '/house/retailers', icon: 'shop', title: 'Retailers and routing', subtitle: data.retailers.map((r) => r.name).join(', ') || 'None yet' },
     { to: '/house/locations', icon: 'pantry', title: 'Locations', subtitle: data.locations.filter((l) => !l.isFreezerShelf).map((l) => l.name).join(', ') },
-    { to: '/house/containers', icon: 'snowflake', title: 'Freezer kit', subtitle: data.containers.map((c) => `${c.countOwned} ${c.name}`).join(', ') || 'No containers yet' },
+    { to: '/house/containers', icon: 'snowflake', title: 'Freezer kit', subtitle: data.containers.map((c) => `${c.name}: ${capacityText(c)}`).join(', ') || 'No containers yet' },
     { to: '/house/prices', icon: 'shop', title: 'Price check', subtitle: row?.settings.priceCheck?.enabled ? `Weekly, near ZIP ${row.zip ?? '?'}` : 'Weekly web check, off' },
     { to: '/house/notifications', icon: 'clock', title: 'Notifications', subtitle: row?.quietFrom ? `Quiet ${row.quietFrom} to ${row.quietTo}` : 'Daily and weekly reminders' },
     { to: '/house/activity', icon: 'list', title: 'Activity feed', subtitle: 'Every change, with undo' },

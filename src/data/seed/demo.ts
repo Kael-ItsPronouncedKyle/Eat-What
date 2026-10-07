@@ -366,6 +366,8 @@ function buildHousehold(opts: {
           block('white-chicken-chili', '2-cup', 480, 2, 40, null, 'Top drawer', 'soup'),
           block('taco-meat', '1-cup', 240, 6, 25, null, 'Chest, left', 'cooked_meat'),
           block('marinara', 'quart bag', 950, 3, 60, null, 'Chest, right', 'sauce'),
+          // A raw dump kit, bagged on cook day and cooked later: the shelf shows Cook 1 beside Eat 1 for it.
+          block('beef-stew', 'gallon bag', 1900, 3, 6, null, 'Chest, right', 'raw_marinated'),
         ]
       : [
           block('marinara', 'quart bag', 950, 2, 9, null, 'Door', 'sauce'),
