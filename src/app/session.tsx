@@ -1,11 +1,12 @@
-import { createContext, useContext, type ReactNode } from 'react'
+import { createContext, useContext } from 'react'
+import type { Role } from '@/domain/types'
 
 /** The active household and the list the signed-in user can switch between.
     Filled by the data layer provider; this file only defines the contract so the shell can render. */
 export interface HouseholdSummary {
   id: string
   name: string
-  role: 'owner' | 'editor' | 'viewer'
+  role: Role
 }
 
 export interface SessionValue {
@@ -23,6 +24,3 @@ export function useSession(): SessionValue {
   return ctx
 }
 
-export function StaticSessionProvider({ value, children }: { value: SessionValue; children: ReactNode }) {
-  return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>
-}

@@ -49,3 +49,6 @@
 :root[data-text-size='A+'] .household-pill, :root[data-text-size='A+'] .household-select { max-width: 34vw; }
 :root[data-text-size='A++'] .household-pill, :root[data-text-size='A++'] .household-select { max-width: 44vw; }
 .partner-fab .btn { padding: 0; }
+
+.splash { min-height: 100dvh; display: grid; place-content: center; justify-items: center; gap: var(--space-4); background: var(--bar-bg); color: var(--bar-fg); font-family: var(--font-display); font-size: var(--fs-lg); }
+.splash-mark { width: 56px; height: 56px; border-radius: 14px; background: var(--amber); }
