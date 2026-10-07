@@ -6,6 +6,7 @@ import { PantryPage } from '@/features/pantry/PantryPage'
 import { CookPage } from '@/features/cook/CookPage'
 import { ShopPage } from '@/features/shop/ShopPage'
 import { HousePage } from '@/features/house/HousePage'
+import { Join } from '@/features/auth/Join'
 
 export const router = createBrowserRouter([
   {
@@ -18,6 +19,7 @@ export const router = createBrowserRouter([
       { path: 'cook/*', element: <CookPage /> },
       { path: 'shop/*', element: <ShopPage /> },
       { path: 'house/*', element: <HousePage /> },
+      { path: 'join/:token', element: <Join /> },
     ],
   },
 ])

@@ -17,7 +17,7 @@ interface SessionState {
 }
 
 /** Provides the repository and the session (active household) to the whole app. */
-export function RepositoryProvider({ repo, children, fallback }: { repo: Repository; children: ReactNode; fallback?: ReactNode }) {
+export function RepositoryProvider({ repo, children, fallback, noHousehold }: { repo: Repository; children: ReactNode; fallback?: ReactNode; noHousehold?: (reload: () => void) => ReactNode }) {
   const [state, setState] = useState<SessionState>({ info: null, loading: true, error: null })
 
   const reload = useCallback(async () => {
@@ -51,6 +51,13 @@ export function RepositoryProvider({ repo, children, fallback }: { repo: Reposit
   }, [state.info, repo, reload])
 
   if (state.loading) return <>{fallback ?? null}</>
+  if (sessionValue && sessionValue.households.length === 0 && noHousehold) {
+    return (
+      <RepositoryContext.Provider value={repo}>
+        <SessionContext.Provider value={sessionValue}>{noHousehold(() => void reload())}</SessionContext.Provider>
+      </RepositoryContext.Provider>
+    )
+  }
   if (!sessionValue) {
     return (
       <div className="page">

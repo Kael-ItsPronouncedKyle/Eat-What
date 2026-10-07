@@ -1,0 +1,4 @@
+.auth { min-height: 100dvh; display: grid; place-items: center; padding: var(--space-5) var(--gutter); background: var(--bg); }
+.auth-card { width: 100%; max-width: 440px; display: flex; flex-direction: column; gap: var(--space-4); }
+.auth-mark { width: 64px; height: 64px; border-radius: 16px; background: var(--navy-900); display: grid; place-items: center; color: #fff; }
+.code-input { font-family: var(--font-display); font-size: var(--fs-2xl); letter-spacing: 0.3em; text-align: center; }

@@ -6,6 +6,8 @@ import { RepositoryProvider } from '@/data/provider'
 import { createRepository } from '@/data/createRepository'
 import { ensureDemoSeed } from '@/data/seed/demo'
 import { router } from './routes'
+import { AuthGate } from '@/features/auth/AuthGate'
+import { FirstRun } from '@/features/auth/FirstRun'
 
 function Splash({ text }: { text: string }) {
   return (
@@ -41,9 +43,11 @@ export default function App() {
   return (
     <PrefsProvider>
       <UndoProvider>
-        <RepositoryProvider repo={repo} fallback={<Splash text="Loading" />}>
-          <RouterProvider router={router} />
-        </RepositoryProvider>
+        <AuthGate repo={repo}>
+          <RepositoryProvider repo={repo} fallback={<Splash text="Loading" />} noHousehold={(reload) => <FirstRun onDone={reload} />}>
+            <RouterProvider router={router} />
+          </RepositoryProvider>
+        </AuthGate>
       </UndoProvider>
     </PrefsProvider>
   )
