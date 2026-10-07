@@ -26,7 +26,7 @@ export function Members() {
   const [adding, setAdding] = useState(false)
 
   const isOwner = household?.role === 'owner'
-  const link = token ? `${typeof location !== 'undefined' ? location.origin : ''}/join/${token}` : null
+  const link = token ? `${typeof location !== 'undefined' ? location.origin : ''}${import.meta.env.BASE_URL.replace(/\/$/, '')}/join/${token}` : null
 
   return (
     <div className="page">
