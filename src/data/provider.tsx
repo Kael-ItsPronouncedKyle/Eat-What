@@ -80,36 +80,30 @@ export interface CollectionState<T> {
   reload: () => void
 }
 
-/** Live list of one table for a household. Re-fetches when the repository reports a change on that table. */
+const EMPTY: never[] = []
+
+/** Live list of one table for a household. Re-fetches when the repository reports a change on that table.
+    Rows are tagged with the table and household they were loaded for, so a household switch never shows the previous
+    household's rows while the new ones load. */
 export function useCollection<K extends TableName>(name: K, householdId: string | null | undefined): CollectionState<TableMap[K]> {
   const repo = useRepo()
-  const [rows, setRows] = useState<TableMap[K][]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const tag = householdId ? `${name}|${householdId}` : null
+  const [state, setState] = useState<{ tag: string | null; rows: TableMap[K][]; error: string | null }>({ tag: null, rows: [], error: null })
   const version = useRef(0)
 
   const reload = useCallback(() => {
-    if (!householdId) {
-      setRows([])
-      setLoading(false)
-      return
-    }
+    if (!householdId || !tag) return
     const v = ++version.current
     repo
       .table(name)
       .list(householdId)
-      .then((r) => {
-        if (v !== version.current) return
-        setRows(r)
-        setLoading(false)
-        setError(null)
+      .then((rows) => {
+        if (v === version.current) setState({ tag, rows, error: null })
       })
       .catch((e: unknown) => {
-        if (v !== version.current) return
-        setError(e instanceof Error ? e.message : String(e))
-        setLoading(false)
+        if (v === version.current) setState({ tag, rows: [], error: e instanceof Error ? e.message : String(e) })
       })
-  }, [repo, name, householdId])
+  }, [repo, name, householdId, tag])
 
   useEffect(() => {
     reload()
@@ -118,38 +112,68 @@ export function useCollection<K extends TableName>(name: K, householdId: string 
     })
   }, [repo, name, householdId, reload])
 
-  return { rows, loading, error, reload }
+  const current = tag !== null && state.tag === tag
+  return {
+    rows: current ? state.rows : (EMPTY as TableMap[K][]),
+    loading: tag !== null && !current,
+    error: current ? state.error : null,
+    reload,
+  }
 }
 
-/** Several tables at once, keyed by name. */
+/** Several tables at once, keyed by name. A full load replaces everything for the household; a change event on one table
+    reloads just that table. A change that lands while the full load is in flight is re-read once the full load settles, so
+    neither result is thrown away and a stale read cannot overwrite a newer one. */
 export function useCollections<K extends TableName>(names: readonly K[], householdId: string | null | undefined): { [P in K]: TableMap[P][] } & { loading: boolean } {
   const repo = useRepo()
-  const [data, setData] = useState<Record<string, unknown[]>>({})
-  const [loading, setLoading] = useState(true)
   const key = names.join(',')
-  const version = useRef(0)
+  const tag = householdId ? `${key}|${householdId}` : null
+  const [state, setState] = useState<{ tag: string | null; data: Record<string, unknown[]> }>({ tag: null, data: {} })
+  const fullVersion = useRef(0)
+  const fullInFlight = useRef(false)
+  const dirty = useRef(new Set<TableName>())
+  const tableVersion = useRef<Record<string, number>>({})
 
   const reload = useCallback(
     (only?: TableName) => {
-      if (!householdId) {
-        setData({})
-        setLoading(false)
+      if (!householdId || !tag) return
+      if (only) {
+        if (fullInFlight.current) {
+          dirty.current.add(only)
+          return
+        }
+        const v = (tableVersion.current[only] = (tableVersion.current[only] ?? 0) + 1)
+        const full = fullVersion.current
+        repo
+          .table(only)
+          .list(householdId)
+          .then((rows) => {
+            if (v !== tableVersion.current[only] || full !== fullVersion.current) return
+            setState((prev) => (prev.tag === tag ? { tag, data: { ...prev.data, [only]: rows } } : prev))
+          })
+          .catch(() => undefined)
         return
       }
-      const v = ++version.current
-      const targets = only ? names.filter((n) => n === only) : names
-      Promise.all(targets.map((n) => repo.table(n).list(householdId).then((rows) => [n, rows] as const))).then((pairs) => {
-        if (v !== version.current && !only) return
-        setData((prev) => {
-          const next = { ...prev }
-          for (const [n, rows] of pairs) next[n] = rows
-          return next
+      const v = ++fullVersion.current
+      fullInFlight.current = true
+      dirty.current.clear()
+      Promise.all(names.map((n) => repo.table(n).list(householdId).then((rows) => [n, rows] as const)))
+        .then((pairs) => {
+          if (v === fullVersion.current) setState({ tag, data: Object.fromEntries(pairs) })
         })
-        setLoading(false)
-      })
+        .catch(() => {
+          if (v === fullVersion.current) setState({ tag, data: {} })
+        })
+        .finally(() => {
+          if (v !== fullVersion.current) return
+          fullInFlight.current = false
+          const again = [...dirty.current]
+          dirty.current.clear()
+          for (const t of again) reload(t)
+        })
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [repo, key, householdId],
+    [repo, key, householdId, tag],
   )
 
   useEffect(() => {
@@ -160,7 +184,8 @@ export function useCollections<K extends TableName>(names: readonly K[], househo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [repo, key, householdId, reload])
 
-  const out = { loading } as { [P in K]: TableMap[P][] } & { loading: boolean }
-  for (const n of names) (out as Record<string, unknown>)[n] = data[n] ?? []
+  const current = tag !== null && state.tag === tag
+  const out = { loading: tag !== null && !current } as { [P in K]: TableMap[P][] } & { loading: boolean }
+  for (const n of names) (out as Record<string, unknown>)[n] = current ? (state.data[n] ?? EMPTY) : EMPTY
   return out
 }

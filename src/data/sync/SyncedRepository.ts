@@ -34,6 +34,7 @@ export class SyncedRepository implements Repository {
   private status: SyncStatus = { pending: 0, online: true, flushing: false, lastPullAt: null, lastError: null }
   private flushPromise: Promise<void> | null = null
   private pulled = new Set<string>()
+  private pulling = new Map<string, Promise<void>>()
   private detach: (() => void)[] = []
   private isOnline: () => boolean
 
@@ -112,17 +113,20 @@ export class SyncedRepository implements Repository {
       patch: async (id, patch) => {
         const existing = (await store.get(id)) as unknown as AnyRow | undefined
         if (!existing) return null
-        const next = { ...existing, ...(patch as unknown as AnyRow), updatedAt: nowIso() }
-        await store.put(next as TableMap[K])
-        await this.enqueue({ householdId: hid(next), table: name, rowId: id, kind: 'patch', payload: { ...(patch as unknown as AnyRow), updatedAt: next.updatedAt } })
+        // Only rows that carry updatedAt get a new stamp: activity_events has created_at alone, and the server rejects unknown columns.
+        const stamp: Partial<AnyRow> = 'updatedAt' in existing ? { updatedAt: nowIso() } : {}
+        const next: AnyRow = { ...existing, ...(patch as unknown as AnyRow), ...stamp }
+        await store.put(next as unknown as TableMap[K])
+        await this.enqueue({ householdId: hid(next), table: name, rowId: id, kind: 'patch', payload: { ...(patch as unknown as AnyRow), ...stamp } })
         emit([id], hid(next))
-        return next as TableMap[K]
+        return next as unknown as TableMap[K]
       },
       softDelete: async (id) => {
         const existing = (await store.get(id)) as unknown as AnyRow | undefined
         if (!existing) return
         const now = nowIso()
-        await store.put({ ...existing, deletedAt: now, updatedAt: now } as TableMap[K])
+        const stamp: Partial<AnyRow> = 'updatedAt' in existing ? { updatedAt: now } : {}
+        await store.put({ ...existing, deletedAt: now, ...stamp } as TableMap[K])
         await this.enqueue({ householdId: hid(existing), table: name, rowId: id, kind: 'softDelete', payload: null })
         emit([id], hid(existing))
       },
@@ -216,8 +220,19 @@ export class SyncedRepository implements Repository {
 
   /* ---- pull ---- */
 
-  /** Full pull of one household's mirrored tables. Rows with a queued local change are not overwritten. */
-  async pull(householdId: string): Promise<void> {
+  /** Full pull of one household's mirrored tables. Rows with a queued local change are not overwritten.
+      Concurrent callers share one in-flight pull per household, so twenty first reads cost one round of requests. */
+  pull(householdId: string): Promise<void> {
+    const inFlight = this.pulling.get(householdId)
+    if (inFlight) return inFlight
+    const run = this.doPull(householdId).finally(() => {
+      this.pulling.delete(householdId)
+    })
+    this.pulling.set(householdId, run)
+    return run
+  }
+
+  private async doPull(householdId: string): Promise<void> {
     if (!this.isOnline()) {
       this.pulled.add(householdId)
       return
@@ -235,7 +250,14 @@ export class SyncedRepository implements Repository {
           const key = keyOf(r)
           if (pendingIds.has(`${name}:${key}`)) continue
           const local = localById.get(key)
-          if (!local || (r.updatedAt ?? '') >= (local.updatedAt ?? '')) toPut.push(r)
+          if (!local) toPut.push(r)
+          else {
+            const remoteStamp = r.updatedAt ?? ''
+            const localStamp = local.updatedAt ?? ''
+            // Newer wins; an equal stamp (or none, as on activity_events) is re-put only when the row actually differs,
+            // so a repeat pull does not announce changes that did not happen.
+            if (remoteStamp > localStamp || (remoteStamp === localStamp && JSON.stringify(r) !== JSON.stringify(local))) toPut.push(r)
+          }
         }
         const remoteIds = new Set(remoteRows.map(keyOf))
         const toDelete = localRows.filter((r) => !remoteIds.has(keyOf(r)) && !pendingIds.has(`${name}:${keyOf(r)}`)).map(keyOf)

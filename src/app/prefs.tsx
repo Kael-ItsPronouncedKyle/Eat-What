@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useToday } from '@/app/hooks/useToday'
 
 export type TextSize = 'A' | 'A+' | 'A++'
 export type Theme = 'system' | 'light' | 'dark'
@@ -89,6 +90,12 @@ export function PrefsProvider({ children }: { children: ReactNode }) {
       /* private mode: prefs live for the session only */
     }
   }, [prefs])
+
+  // Energy resets each morning, including when the installed app stays open overnight.
+  const dayKey = useToday()
+  useEffect(() => {
+    setPrefs((p) => (p.energyDate === dayKey ? p : { ...p, energy: DEFAULTS.energy, energyDate: dayKey }))
+  }, [dayKey])
 
   const set = useCallback(<K extends keyof Prefs>(key: K, value: Prefs[K]) => {
     setPrefs((p) => ({ ...p, [key]: value }))

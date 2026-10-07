@@ -1,5 +1,5 @@
 import { isRouteErrorResponse, useRouteError, Link } from 'react-router'
-import { EmptyState, Button } from '@/design/components'
+import { EmptyState, Icon } from '@/design/components'
 
 export function RouteError() {
   const err = useRouteError()
@@ -12,7 +12,8 @@ export function RouteError() {
         body={`${msg}. Go back to Home and try again.`}
         action={
           <Link to="/" className="btn btn-primary btn-lg">
-            <Button variant="primary" size="lg" icon="home">Home</Button>
+            <Icon name="home" />
+            <span className="btn-label">Home</span>
           </Link>
         }
       />

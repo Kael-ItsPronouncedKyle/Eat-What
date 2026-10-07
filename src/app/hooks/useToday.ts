@@ -5,11 +5,20 @@ import { today } from '@/domain/dates'
 export function useToday(): string {
   const [key, setKey] = useState(() => today())
   useEffect(() => {
-    const id = window.setInterval(() => {
+    const check = () => {
       const t = today()
       setKey((k) => (k === t ? k : t))
-    }, 60_000)
-    return () => window.clearInterval(id)
+    }
+    const id = window.setInterval(check, 60_000)
+    // A phone that kept the app open overnight sees the new day on the first foreground, not up to a minute later.
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') check()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      window.clearInterval(id)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
   }, [])
   return key
 }

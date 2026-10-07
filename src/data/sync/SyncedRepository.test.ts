@@ -1,8 +1,9 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { LocalRepository } from '../local/LocalRepository'
 import { QmDatabase } from '../local/db'
 import { ensureDemoSeed } from '../seed/demo'
 import { SyncedRepository } from './SyncedRepository'
+import { logEvent } from '../mutations'
 
 let n = 0
 
@@ -108,5 +109,38 @@ describe('SyncedRepository (offline mirror + outbox)', () => {
     await synced.flush()
     expect(synced.syncStatus().pending).toBe(0)
     expect(synced.syncStatus().lastError).toContain('row-level security')
+  })
+
+  it('patching a row that has no updatedAt (an activity event) sends no stamp, so an undo is not rejected', async () => {
+    const s = await synced.session()
+    const hid = s.activeHouseholdId!
+    const event = await logEvent(remote, hid, { userId: s.userId, source: 'tap' }, { entityType: 'items', entityId: null, action: 'status', summary: 'Eggs: Low' })
+    await synced.pull(hid)
+    const sent: Record<string, unknown>[] = []
+    const original = remote.table.bind(remote)
+    ;(remote as unknown as { table: unknown }).table = ((name: string) => {
+      const col = original(name as never)
+      if (name !== 'activity_events') return col
+      return { ...col, patch: async (id: string, patch: Record<string, unknown>) => { sent.push(patch); return col.patch(id, patch as never) } }
+    }) as never
+    await synced.table('activity_events').patch(event.id, { undoneByEventId: 'undo-1' })
+    await synced.flush()
+    expect(synced.syncStatus().lastError).toBeNull()
+    expect(sent).toHaveLength(1)
+    expect(sent[0]).toEqual({ undoneByEventId: 'undo-1' })
+    expect((await remote.table('activity_events').get(event.id))!.undoneByEventId).toBe('undo-1')
+  })
+
+  it('concurrent first reads share one pull, and a repeat pull with nothing new announces nothing', async () => {
+    const s = await synced.session()
+    const hid = s.activeHouseholdId!
+    const spy = vi.spyOn(synced as unknown as { doPull: (h: string) => Promise<void> }, 'doPull')
+    await Promise.all([synced.table('items').list(hid), synced.table('recipes').list(hid), synced.table('prices').list(hid), synced.table('rules').list(hid)])
+    // session() started one pull; the four reads joined it (or found it finished) rather than starting their own.
+    expect(spy.mock.calls.length).toBeLessThanOrEqual(1)
+    const seen: string[] = []
+    synced.subscribe((e) => seen.push(`${e.origin}:${e.table}`))
+    await synced.pull(hid)
+    expect(seen.filter((x) => x.startsWith('remote:'))).toEqual([])
   })
 })
