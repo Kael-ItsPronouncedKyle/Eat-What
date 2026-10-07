@@ -66,6 +66,7 @@ insert into public.rules (household_id, type, payload) values (:'hid', 'allergy'
 select app_test.assert(app_test.flagged(:'hid', array['whole milk', 'cheddar cheese', 'unsalted butter', 'heavy cream', 'half and half', 'half-and-half', 'greek yogurt', 'whey protein', 'ghee', 'cheddar', 'fresh mozzarella', 'grated parmesan', 'feta']) = 13, 'dairy flags every member');
 select app_test.assert(app_test.flagged(:'hid', array['coconut milk', 'almond milk', 'oat milk', 'soy milk', 'peanut butter', 'almond butter', 'cocoa butter', 'coconut cream', 'cream of tartar', 'olive oil']) = 0, 'dairy skips plant milks and nut butters');
 select app_test.assert(app_test.flagged(:'hid', array['coconut milk and whole milk']) = 1, 'an exception phrase does not hide a real match');
+select app_test.assert(app_test.flagged(:'hid', array['coconut milk, coconut milk', 'coconut milk coconut cream']) = 0, 'a repeated exception phrase is still the exception');
 update public.rules set active = false where household_id = :'hid';
 
 -- Gluten and wheat share one list.

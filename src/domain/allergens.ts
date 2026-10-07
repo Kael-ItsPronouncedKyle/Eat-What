@@ -62,7 +62,11 @@ function hasTerm(canonicalIngredient: string, term: string): boolean {
   // Only skip when the match is explained entirely by exception phrases: "coconut milk" is not dairy,
   // but "coconut milk and milk" still is. Blank out each exception phrase and look again.
   let rest = ` ${canonicalIngredient} `
-  for (const phrase of excepted) rest = rest.split(` ${phrase} `).join('  ')
+  for (const phrase of excepted) {
+    const needle = ` ${phrase} `
+    // Loop rather than split once: back-to-back repeats share a space, so one pass would leave the second copy.
+    while (rest.includes(needle)) rest = rest.replace(needle, '  ')
+  }
   return containsIngredient(rest.trim(), term)
 }
 

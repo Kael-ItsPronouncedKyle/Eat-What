@@ -56,6 +56,9 @@ describe('ingredientHasAllergen', () => {
     for (const n of ['coconut milk', 'almond milk', 'oat milk', 'soy milk', 'peanut butter', 'almond butter', 'cocoa butter', 'coconut cream', 'cream of tartar', 'olive oil']) no(n, 'dairy')
     // An exception phrase does not hide a real match elsewhere in the same line.
     yes('coconut milk and whole milk', 'dairy')
+    // A repeated exception phrase is still only the exception.
+    no('coconut milk, coconut milk', 'dairy')
+    no('coconut milk coconut cream', 'dairy')
   })
   it('gluten and wheat', () => {
     for (const n of ['wheat berries', 'flour', 'all-purpose flour', 'bread flour', 'cake flour', 'sourdough bread', 'pasta', 'couscous', 'pearl barley', 'rye', 'seitan', 'soy sauce']) {
