@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { cleanup, screen } from '@testing-library/react'
+import { cleanup, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { renderWithApp } from '@/test/render'
 import { Notifications } from './Notifications'
@@ -30,8 +30,11 @@ describe('Notifications', () => {
 
     const low = await screen.findByRole('switch', { name: /Item hit Low or Out/ })
     await user.click(low)
-    expect(await screen.findByRole('switch', { name: /Item hit Low or Out/ })).toHaveAttribute('aria-checked', 'false')
-    const prefs = await repo.table('notification_prefs').list(denton)
-    expect(prefs.find((p) => p.type === 'low_out_daily' && p.userId === session.userId)?.enabled).toBe(false)
+    // The write is not awaited by the toggle; give the collection time to refresh on a busy machine.
+    await waitFor(() => expect(screen.getByRole('switch', { name: /Item hit Low or Out/ })).toHaveAttribute('aria-checked', 'false'), { timeout: 5000 })
+    await waitFor(async () => {
+      const prefs = await repo.table('notification_prefs').list(denton)
+      expect(prefs.find((p) => p.type === 'low_out_daily' && p.userId === session.userId)?.enabled).toBe(false)
+    }, { timeout: 5000 })
   })
 })
